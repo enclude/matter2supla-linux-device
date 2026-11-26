@@ -66,6 +66,8 @@ Plik `config/devices.yaml` jest także zapisywany przez łącznik (przy dopisywa
 
 ## Nagłówek i komunikaty
 
+Pod nagłówkiem są zakładki: **Kanały** (kanały SUPLA i urządzenia bez kanału), **Grupy świateł**, **Parowanie** i **System** (konto SUPLA, kopie zapasowe). Wybrana zakładka jest zapisana w adresie strony (np. `#grupy`), więc odświeżenie jej nie zmienia. Liczba przy zakładce „Kanały” to liczba kanałów, a dopisek `+N` oznacza urządzenia czekające bez kanału.
+
 Znaczniki „MQTT” i „Matter · wersja” pokazują połączenie łącznika z brokerem i kontrolerem. Żółty komunikat u góry informuje o problemie z konfiguracją SUPLA (np. brak konta albo konflikt kanałów).
 
 W stopce widać wersję łącznika. Gdy na GitHubie jest nowsze wydanie, u góry pojawia się komunikat „Dostępna wersja X” z odnośnikiem do opisu wydania; panel niczego sam nie aktualizuje - robi się to poleceniem `sudo ./host/update.sh` na hoście. Sprawdzanie można wyłączyć (`update_check: false`); szczegóły: [aktualizacja.md](aktualizacja.md).

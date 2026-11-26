@@ -30,6 +30,11 @@
   .pill.ok { color: var(--on); border-color: currentColor; }
   .pill.bad { color: var(--bad); border-color: currentColor; }
   section { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 18px; margin-bottom: 16px; }
+  .tabs { display: flex; gap: 4px; overflow-x: auto; margin-bottom: 16px; border-bottom: 1px solid var(--line); }
+  .tabs button { border: 0; border-bottom: 2px solid transparent; border-radius: 0; padding: 8px 12px; font-size: 14px; color: var(--muted); white-space: nowrap; }
+  .tabs button[aria-selected=true] { color: var(--ink); border-bottom-color: var(--accent); font-weight: 600; }
+  .tabs .count { font-size: 11px; font-weight: 600; color: var(--muted); margin-left: 2px; }
+  .tabs .count.alert { color: var(--warn); }
   .notice { border-radius: 8px; padding: 10px 12px; margin-bottom: 16px; white-space: pre-wrap; }
   .notice.warn { background: var(--warn-bg); color: var(--warn); }
   .notice.bad { background: var(--bad-bg); color: var(--bad); }
@@ -84,11 +89,27 @@
   <div id="update-notice"></div>
   <div id="notices"></div>
 
+  <nav class="tabs" role="tablist" aria-label="Części panelu">
+    <button type="button" role="tab" data-tab="kanaly">Kanały <span class="count" id="count-kanaly"></span></button>
+    <button type="button" role="tab" data-tab="grupy">Grupy świateł <span class="count" id="count-grupy"></span></button>
+    <button type="button" role="tab" data-tab="parowanie">Parowanie</button>
+    <button type="button" role="tab" data-tab="system">System</button>
+  </nav>
+
+  <div class="tab" id="tab-kanaly" role="tabpanel" hidden>
   <section>
     <h2>Kanały SUPLA</h2>
     <div id="devices"><p class="empty">Wczytywanie…</p></div>
   </section>
 
+  <section id="candidates-section" hidden>
+    <h2>Urządzenia Matter bez kanału</h2>
+    <div id="candidates"></div>
+    <p class="hint">Urządzenie nieobsługiwane można sparować i pobrać jego diagnostykę — na jej podstawie dopisuje się obsługę. Kanał SUPLA powstanie dopiero wtedy, bo kanału nie da się później zmienić ani usunąć.</p>
+  </section>
+  </div>
+
+  <div class="tab" id="tab-grupy" role="tabpanel" hidden>
   <section>
     <h2>Grupy świateł</h2>
     <div id="groups"></div>
@@ -102,31 +123,9 @@
     </form>
     <div id="group-status"></div>
   </section>
+  </div>
 
-  <section id="candidates-section" hidden>
-    <h2>Urządzenia Matter bez kanału</h2>
-    <div id="candidates"></div>
-    <p class="hint">Urządzenie nieobsługiwane można sparować i pobrać jego diagnostykę — na jej podstawie dopisuje się obsługę. Kanał SUPLA powstanie dopiero wtedy, bo kanału nie da się później zmienić ani usunąć.</p>
-  </section>
-
-  <section>
-    <h2>Konto SUPLA</h2>
-    <form id="supla-form">
-      <div class="field">
-        <label for="supla-server">Serwer</label>
-        <input type="text" id="supla-server" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="np. svr12.supla.org" required>
-        <p class="hint">Adres serwera widać w SUPLA Cloud i w aplikacji, w ustawieniach konta.</p>
-      </div>
-      <div class="field">
-        <label for="supla-mail">E-mail konta</label>
-        <input type="text" id="supla-mail" inputmode="email" autocomplete="off" autocapitalize="none" spellcheck="false" required>
-      </div>
-      <button>Zapisz konto</button>
-      <p class="hint">Przed pierwszym połączeniem włącz w SUPLA Cloud dodawanie urządzeń. Po zapisaniu supla-device uruchomi się ponownie z nowymi danymi.</p>
-    </form>
-    <div id="supla-status"></div>
-  </section>
-
+  <div class="tab" id="tab-parowanie" role="tabpanel" hidden>
   <section>
     <h2>Parowanie urządzenia</h2>
     <form id="commission-form">
@@ -174,11 +173,34 @@
       </div>
     </details>
   </section>
+  </div>
+
+  <div class="tab" id="tab-system" role="tabpanel" hidden>
+  <section>
+    <h2>Konto SUPLA</h2>
+    <form id="supla-form">
+      <div class="field">
+        <label for="supla-server">Serwer</label>
+        <input type="text" id="supla-server" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="np. svr12.supla.org" required>
+        <p class="hint">Adres serwera widać w SUPLA Cloud i w aplikacji, w ustawieniach konta.</p>
+      </div>
+      <div class="field">
+        <label for="supla-mail">E-mail konta</label>
+        <input type="text" id="supla-mail" inputmode="email" autocomplete="off" autocapitalize="none" spellcheck="false" required>
+      </div>
+      <button>Zapisz konto</button>
+      <p class="hint">Przed pierwszym połączeniem włącz w SUPLA Cloud dodawanie urządzeń. Po zapisaniu supla-device uruchomi się ponownie z nowymi danymi.</p>
+    </form>
+    <div id="supla-status"></div>
+  </section>
+
   <section>
     <h2>Kopie zapasowe</h2>
     <div id="backups"><p class="empty">Wczytywanie…</p></div>
     <p class="hint">Kopia zawiera wszystko, czego nie da się odtworzyć: tożsamość kontrolera Matter (parowania), klucze sieci Thread, identyfikator urządzenia SUPLA i konfigurację kanałów. Zawiera sekrety — trzymaj ją w bezpiecznym miejscu. Odtwarzanie: <code>sudo ./host/restore.sh plik.tar.gz</code>.</p>
   </section>
+  </div>
+
   <footer id="version"></footer>
 </main>
 
@@ -344,6 +366,25 @@ function renderCandidates(state) {
   }));
 }
 
+const TABS = ["kanaly", "grupy", "parowanie", "system"];
+
+function showTab(name, remember) {
+  // Zakładka jest w adresie (#grupy), więc odświeżenie strony i przycisk „wstecz” ją zachowują.
+  if (!TABS.includes(name)) name = TABS[0];
+  for (const tab of TABS) $("tab-" + tab).hidden = tab !== name;
+  for (const button of document.querySelectorAll(".tabs button")) button.setAttribute("aria-selected", String(button.dataset.tab === name));
+  if (remember && location.hash.slice(1) !== name) history.replaceState(null, "", "#" + name);
+}
+
+function renderCounts(state) {
+  const groups = state.devices.filter((d) => d.type === "light_group").length;
+  const waiting = state.candidates.length;
+  $("count-kanaly").textContent = state.devices.length - groups + (waiting ? ` +${waiting}` : "");
+  $("count-kanaly").className = "count" + (waiting ? " alert" : "");
+  $("count-kanaly").title = waiting ? `urządzenia bez kanału: ${waiting}` : "";
+  $("count-grupy").textContent = groups || "";
+}
+
 let shownGroups = null;
 let groupsDirty = false;
 
@@ -426,6 +467,7 @@ function render(state) {
   renderDevices(state);
   renderCandidates(state);
   renderGroups(state);
+  renderCounts(state);
   renderBackups(state);
   renderVersion(state);
   if (!suplaDirty && document.activeElement.id !== "supla-server" && document.activeElement.id !== "supla-mail") {
@@ -529,6 +571,9 @@ $("dataset-form").addEventListener("submit", (e) => {
   act(async () => { await post("/api/thread-dataset", { dataset: $("dataset").value }); $("dataset").value = ""; }, $("dataset-status"));
 });
 
+for (const button of document.querySelectorAll(".tabs button")) button.onclick = () => showTab(button.dataset.tab, true);
+window.addEventListener("hashchange", () => showTab(location.hash.slice(1)));
+showTab(location.hash.slice(1));
 refresh();
 setInterval(refresh, 2000);
 </script>

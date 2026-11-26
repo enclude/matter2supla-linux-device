@@ -117,15 +117,22 @@ async def main() -> None:
 
         await login(page)
         await page.screenshot(path=OUT / "panel.png", full_page=True)
-        sections = page.locator("section:visible")
+        async def shot(tab: str, selector: str, name: str) -> None:
+            await page.click(f'.tabs button[data-tab="{tab}"]')
+            await page.locator(selector).screenshot(path=OUT / f"{name}.png")
+
+        await shot("kanaly", "#tab-kanaly section >> nth=0", "panel-kanaly")
+        await shot("kanaly", "#candidates-section", "panel-bez-kanalu")
+        await page.click('.tabs button[data-tab="grupy"]')
         await page.locator("#groups summary").first.click()
-        names = ["panel-kanaly", "panel-grupy", "panel-bez-kanalu", "panel-konto-supla", "panel-parowanie", "panel-kopie"]
-        for index, name in enumerate(names):
-            await sections.nth(index).screenshot(path=OUT / f"{name}.png")
+        await shot("grupy", "#tab-grupy section", "panel-grupy")
+        await shot("parowanie", "#tab-parowanie section", "panel-parowanie")
+        await shot("system", "#tab-system section >> nth=0", "panel-konto-supla")
+        await shot("system", "#tab-system section >> nth=1", "panel-kopie")
 
         manager.state["commission"] = {"running": True, "message": "Parowanie trwa (do kilku minut)…", "error": None}
         await page.wait_for_timeout(2500)
-        await sections.nth(4).screenshot(path=OUT / "panel-parowanie-trwa.png")
+        await shot("parowanie", "#tab-parowanie section", "panel-parowanie-trwa")
         manager.state["commission"] = STATE["commission"]
 
         phone = await open_page(390, 800, mobile=True)
