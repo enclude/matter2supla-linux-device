@@ -4,6 +4,27 @@ Instrukcja odpowiada wdrożeniu uruchomionemu na **Raspberry Pi 4B z Raspberry P
 
 Zanim zaczniesz, przygotuj dongle: [dongle-esp32-c5.md](dongle-esp32-c5.md).
 
+## Instalacja jednym poleceniem
+
+Po przygotowaniu systemu (punkt 1) i pobraniu projektu (punkt 3) całą resztę robi skrypt:
+
+```bash
+sudo ./host/install.sh --lan [interfejs]
+```
+
+- `--lan` — panel WWW dostępny z sieci lokalnej, z wylosowanym hasłem (zapisanym w `.env`); bez tej opcji panel działa tylko na samym urządzeniu;
+- `interfejs` — interfejs LAN; domyślnie ten, przez który wychodzi trasa domyślna.
+
+Skrypt wykonuje punkty 2 oraz 4–10 tej instrukcji i włącza codzienną kopię zapasową. Jest bezpieczny do ponownego uruchomienia: istniejących plików `.env` i `config/devices.yaml` nie zmienia, a sieci Thread, która już istnieje, nie tworzy od nowa. Wymaga, żeby w chwili uruchomienia podłączony był dokładnie jeden adapter szeregowy USB (dongle).
+
+Ponowne uruchomienie na działającej instalacji było sprawdzone (Raspberry Pi 4B: konfiguracja, tożsamość urządzenia i sieć Thread bez zmian). Pełna instalacja tym skryptem na czystym systemie **nie była jeszcze sprawdzona**. Poniższe punkty opisują te same kroki wykonywane ręcznie i służą też do zrozumienia, co skrypt robi.
+
+Sam krok tworzenia sieci Thread i startu usług można powtórzyć osobno: `sudo ./host/init-thread.sh`.
+
+### Gotowe obrazy
+
+`bridge` i `supla-device` są publikowane w GitHub Container Registry przez pipeline `.github/workflows/docker.yml` (amd64 i arm64, tag `latest` dla gałęzi `main`, numer wersji dla tagów `v*`). `docker compose pull bridge supla` pobiera je zamiast budować; wersję wybiera zmienna `M2S_VERSION` w `.env`. Budowa lokalna: `docker compose build bridge supla` albo `M2S_BUILD=1 sudo ./host/init-thread.sh`.
+
 ## 1. System
 
 - System **64-bitowy** (Raspberry Pi OS 64-bit albo Ubuntu Server arm64) — obrazy kontenerów są arm64.

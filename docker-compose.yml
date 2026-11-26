@@ -55,6 +55,8 @@ services:
     restart: unless-stopped
 
   bridge:
+    # Gotowy obraz z GHCR (docker compose pull bridge supla); `--build` buduje lokalnie.
+    image: ghcr.io/enclude/matter2supla-bridge:${M2S_VERSION:-latest}
     build: ./bridge
     container_name: bridge
     network_mode: host
@@ -70,6 +72,7 @@ services:
     restart: unless-stopped
 
   supla:
+    image: ghcr.io/enclude/matter2supla-supla-device:${M2S_VERSION:-latest}
     build: ./supla-device
     container_name: supla
     network_mode: host

@@ -25,7 +25,7 @@ Wszystkie usługi działają w kontenerach (`docker compose`) w sieci hosta — 
 
 ## Szybki start
 
-Skrót dla Raspberry Pi; pełna wersja z wyjaśnieniami: [docs/instalacja-raspberry-pi.md](docs/instalacja-raspberry-pi.md).
+Skrót dla Raspberry Pi; wersja krok po kroku, z wyjaśnieniami: [docs/instalacja-raspberry-pi.md](docs/instalacja-raspberry-pi.md).
 
 1. **Dongle.** Zbuduj i wgraj `ot_rcp` na ESP32-C5 — [docs/dongle-esp32-c5.md](docs/dongle-esp32-c5.md). Uwaga: wgranie kasuje dotychczasowy firmware płytki.
 
@@ -33,46 +33,21 @@ Skrót dla Raspberry Pi; pełna wersja z wyjaśnieniami: [docs/instalacja-raspbe
    ./host/build-rcp-docker.sh rcp-build      # wypisuje polecenia esptool do wgrania
    ```
 
-2. **Host.** Na Raspberry Pi, w katalogu projektu:
+2. **Instalacja.** Podłącz dongle do Raspberry Pi i w katalogu projektu uruchom jedno polecenie:
 
    ```bash
-   sudo apt install docker.io docker-compose docker-buildx bluez
-   sudo rfkill unblock bluetooth
-   ip -br link                               # nazwa interfejsu LAN: eth0 / end0 / wlan0
-   sudo ./host/setup-host.sh eth0            # sysctl wymagane przez border router
-   sudo cp host/99-thread-rcp.rules.example /etc/udev/rules.d/99-thread-rcp.rules
-   sudo udevadm control --reload && sudo udevadm trigger     # dongle jako /dev/thread-rcp
+   sudo ./host/install.sh --lan              # bez --lan panel działa tylko lokalnie (127.0.0.1)
    ```
 
-3. **Konfiguracja.**
+   Skrypt instaluje Dockera (jeśli go nie ma), ustawia system, rozpoznaje dongle, tworzy `.env` i katalogi, tworzy sieć Thread, uruchamia usługi, przekazuje dane sieci kontrolerowi Matter i włącza codzienną kopię zapasową. Można go uruchamiać ponownie — niczego istniejącego nie nadpisuje i nie tworzy sieci Thread od nowa. Na końcu wypisuje adres panelu.
 
-   ```bash
-   cp .env.example .env                      # ustaw INFRA_IF; dopisz COMPOSE_FILE (Bluetooth) — patrz instrukcja
-   cp config/devices.example.yaml config/devices.yaml
-   mkdir -p data/otbr data/matter data/supla config/supla
-   sudo chown -R 1000:1000 data/matter data/supla config
-   ```
+   Obrazy `bridge` i `supla-device` są pobierane z GHCR, jeśli są tam opublikowane; w przeciwnym razie skrypt buduje je na miejscu (na Raspberry Pi trwa to kilkanaście minut).
 
-4. **Sieć Thread i start.**
+3. **Panel WWW** — wpisz konto SUPLA i sparuj urządzenie kodem lub zdjęciem kodu QR: [docs/panel-www.md](docs/panel-www.md), [docs/parowanie.md](docs/parowanie.md).
 
-   ```bash
-   docker compose up -d otbr
-   docker exec otbr ot-ctl dataset init new
-   docker exec otbr ot-ctl dataset commit active
-   docker exec otbr ot-ctl ifconfig up
-   docker exec otbr ot-ctl thread start
-   docker exec otbr ot-ctl state             # po chwili: leader
-   docker compose up -d --build
-   docker compose run --rm bridge set-thread-dataset "$(docker exec otbr ot-ctl dataset active -x | head -1)"
-   ```
+4. **Kopia zapasowa** powstaje codziennie o 03:30; pobierz jedną od razu po pierwszym parowaniu i trzymaj poza urządzeniem: [docs/kopie-zapasowe.md](docs/kopie-zapasowe.md).
 
-5. **Panel WWW** (`127.0.0.1:8099`, z innego komputera przez tunel SSH albo z LAN z hasłem) — wpisz konto SUPLA i sparuj urządzenie kodem lub zdjęciem kodu QR: [docs/panel-www.md](docs/panel-www.md), [docs/parowanie.md](docs/parowanie.md).
-
-6. **Kopia zapasowa** — od razu po pierwszym parowaniu: [docs/kopie-zapasowe.md](docs/kopie-zapasowe.md).
-
-   ```bash
-   sudo ./host/install-backup-timer.sh daily 14
-   ```
+Skrypt był uruchomiony na działającej instalacji (Raspberry Pi 4B): niczego nie zmienił w konfiguracji, tożsamości urządzenia ani sieci Thread, a usługi wróciły do pracy. **Pełna instalacja nim na czystym systemie nie była jeszcze sprawdzona** — gdyby zawiódł, te same kroki są opisane ręcznie w instrukcji.
 
 ## Najważniejsze ostrzeżenia
 
