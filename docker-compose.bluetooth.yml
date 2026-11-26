@@ -1,0 +1,14 @@
+# Dodatek do parowania bezpośredniego przez Bluetooth (adapter BT przekazany do VM, BlueZ na hoście).
+# Użycie: docker compose -f docker-compose.yml -f docker-compose.bluetooth.yml up -d
+# albo na stałe w .env:  COMPOSE_FILE=docker-compose.yml:docker-compose.bluetooth.yml
+services:
+  matter-server:
+    environment:
+      NOBLE_BINDINGS: "dbus"
+      BLUETOOTH_ADAPTER: "0"
+    security_opt:
+      # Domyślny profil AppArmor Dockera blokuje kontenerowi D-Bus hosta (BlueZ): bez tego
+      # kontroler pada z „write EPIPE” przy pierwszym użyciu Bluetootha (sprawdzone na Ubuntu 26.04).
+      - "apparmor=unconfined"
+    volumes:
+      - "/run/dbus:/run/dbus:ro"

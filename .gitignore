@@ -1,0 +1,16 @@
+# Sekrety i dane instalacji — nigdy do repozytorium
+.env
+data/
+backups/
+pre-restore-*/
+config/devices.yaml
+config/supla/
+
+# Python
+__pycache__/
+*.egg-info/
+.pytest_cache/
+.venv/
+
+# Zbudowany firmware RCP
+rcp-build/

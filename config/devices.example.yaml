@@ -1,0 +1,29 @@
+# Mapowanie urządzeń Matter na kanały SUPLA. Skopiuj do config/devices.yaml.
+# node_id i endpoint odczytasz poleceniem:  docker compose run --rm bridge nodes
+#
+# UWAGA: supla_channel jest trwały. Wolno tylko dopisywać nowe urządzenia z kolejnym
+# numerem; zmiana typu lub usunięcie kanału kończy się „Channel conflict” w SUPLA Cloud.
+
+matter:
+  url: ws://127.0.0.1:5580/ws
+
+mqtt:
+  host: 127.0.0.1
+  port: 1883
+  topic_prefix: m2s
+
+heartbeat_sec: 30          # co ile łącznik ponawia publikację stanów
+state_expiration_sec: 120  # po tym czasie bez wiadomości supla-device uznaje stan za nieważny
+
+# Nowo sparowane urządzenia obsługiwanego typu są same dopisywane jako kolejne kanały SUPLA.
+auto_add: true
+
+# Panel WWW (parowanie, lista kanałów). Domyślnie tylko lokalnie: ssh -L 8099:127.0.0.1:8099 <vm>
+# Dla dostępu z LAN ustaw host na adres VM i hasło M2S_WEB_PASSWORD w .env.
+web:
+  enabled: true
+  host: 127.0.0.1
+  port: 8099
+
+# Listę wypełnia łącznik; ręcznie wolno tylko dopisywać na końcu.
+devices: []

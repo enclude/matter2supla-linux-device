@@ -1,0 +1,6 @@
+# Stała nazwa portu dongla Thread: /dev/thread-rcp
+# 1. Odczytaj identyfikatory mostka USB-UART płytki:  lsusb
+# 2. Poniżej wpisany jest CH340 (1a86:7523) — mostek posiadanej płytki. Inne: CP2102N = 10c4:ea60, CH343 = 1a86:55d3.
+# 3. sudo cp host/99-thread-rcp.rules.example /etc/udev/rules.d/99-thread-rcp.rules
+#    sudo udevadm control --reload && sudo udevadm trigger
+SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", SYMLINK+="thread-rcp"

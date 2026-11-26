@@ -1,0 +1,35 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "m2s-bridge"
+version = "0.1.0"
+description = "Łącznik Matter (matter-server, WebSocket) <-> MQTT dla supla-device"
+requires-python = ">=3.11"
+dependencies = [
+    "aiohttp>=3.10,<4",
+    "aiomqtt>=2.3,<3",
+    "Pillow>=10",
+    "PyYAML>=6,<7",
+    "websockets>=13,<17",
+    "zxing-cpp>=2.2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "pytest-asyncio>=0.24",
+]
+
+[project.scripts]
+m2s-bridge = "m2s_bridge.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/m2s_bridge"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+pythonpath = ["tests"]
+testpaths = ["tests"]

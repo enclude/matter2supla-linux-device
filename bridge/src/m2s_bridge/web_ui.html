@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Matter2Supla</title>
+<style>
+  :root {
+    --bg: #f4f5f2; --card: #ffffff; --ink: #1c2321; --muted: #66706c; --line: #dfe3de;
+    --accent: #0b7a53; --accent-ink: #ffffff; --warn: #9a5b00; --warn-bg: #fff4dc;
+    --bad: #a3271f; --bad-bg: #fdecea; --on: #0b7a53; --off: #7b8581;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141816; --card: #1d2320; --ink: #e8ece9; --muted: #98a39e; --line: #2e3632;
+      --accent: #37b585; --accent-ink: #08130e; --warn: #f0b860; --warn-bg: #33290f;
+      --bad: #ff8f85; --bad-bg: #3a1a17; --on: #37b585; --off: #7b8581;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, "Segoe UI", sans-serif; }
+  main { max-width: 860px; margin: 0 auto; padding: 24px 16px 48px; }
+  header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px; margin-bottom: 20px; }
+  h1 { font-size: 22px; margin: 0; letter-spacing: -0.01em; }
+  h2 { font-size: 15px; margin: 0 0 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; }
+  .pills { display: flex; flex-wrap: wrap; gap: 6px; }
+  .pill { font-size: 12px; padding: 2px 10px; border-radius: 99px; border: 1px solid var(--line); color: var(--muted); }
+  .pill.ok { color: var(--on); border-color: currentColor; }
+  .pill.bad { color: var(--bad); border-color: currentColor; }
+  section { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 18px; margin-bottom: 16px; }
+  .notice { border-radius: 8px; padding: 10px 12px; margin-bottom: 16px; white-space: pre-wrap; }
+  .notice.warn { background: var(--warn-bg); color: var(--warn); }
+  .notice.bad { background: var(--bad-bg); color: var(--bad); }
+  .notice.ok { background: transparent; border: 1px solid var(--on); color: var(--on); }
+  .row { display: grid; grid-template-columns: 44px 1fr auto; gap: 12px; align-items: center; padding: 12px 0; border-top: 1px solid var(--line); }
+  .row:first-of-type { border-top: 0; padding-top: 0; }
+  .row:last-child { padding-bottom: 0; }
+  .chan { font-variant-numeric: tabular-nums; font-weight: 600; text-align: center; border: 1px solid var(--line); border-radius: 8px; padding: 6px 0; }
+  .chan small { display: block; font-size: 10px; font-weight: 400; color: var(--muted); }
+  .title { font-weight: 600; overflow-wrap: anywhere; }
+  .meta { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+  .state { font-size: 12px; font-weight: 600; }
+  .state.on { color: var(--on); } .state.off { color: var(--off); } .state.unavailable { color: var(--bad); }
+  .actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+  a.button { text-decoration: none; display: inline-block; }
+  button, a.button { font: inherit; font-size: 13px; padding: 6px 12px; border-radius: 7px; border: 1px solid var(--line); background: transparent; color: var(--ink); cursor: pointer; }
+  button:hover:not(:disabled), a.button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+  button:disabled { opacity: 0.45; cursor: default; }
+  button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+  input[type=text], input[type=password] { font: inherit; width: 100%; padding: 8px 10px; border-radius: 7px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
+  .field { margin-bottom: 12px; }
+  .check { display: flex; gap: 8px; align-items: flex-start; font-weight: 400; font-size: 13px; }
+  .check input { margin-top: 4px; }
+  .hint { font-size: 12px; color: var(--muted); margin: 4px 0 0; }
+  .empty { color: var(--muted); margin: 0; }
+  details { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 12px; }
+  summary { cursor: pointer; font-weight: 600; font-size: 13px; }
+  details > div { margin-top: 12px; }
+  @media (max-width: 560px) { .row { grid-template-columns: 44px 1fr; } .actions { grid-column: 1 / -1; justify-content: flex-start; } }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Matter2Supla</h1>
+    <div class="pills" id="pills"></div>
+    <button type="button" id="logout" hidden style="margin-left:auto">Wyloguj</button>
+  </header>
+
+  <div id="notices"></div>
+
+  <section>
+    <h2>Kanały SUPLA</h2>
+    <div id="devices"><p class="empty">Wczytywanie…</p></div>
+  </section>
+
+  <section id="candidates-section" hidden>
+    <h2>Urządzenia Matter bez kanału</h2>
+    <div id="candidates"></div>
+    <p class="hint">Urządzenie nieobsługiwane można sparować i pobrać jego diagnostykę — na jej podstawie dopisuje się obsługę. Kanał SUPLA powstanie dopiero wtedy, bo kanału nie da się później zmienić ani usunąć.</p>
+  </section>
+
+  <section>
+    <h2>Konto SUPLA</h2>
+    <form id="supla-form">
+      <div class="field">
+        <label for="supla-server">Serwer</label>
+        <input type="text" id="supla-server" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="np. svr12.supla.org" required>
+        <p class="hint">Adres serwera widać w SUPLA Cloud i w aplikacji, w ustawieniach konta.</p>
+      </div>
+      <div class="field">
+        <label for="supla-mail">E-mail konta</label>
+        <input type="text" id="supla-mail" inputmode="email" autocomplete="off" autocapitalize="none" spellcheck="false" required>
+      </div>
+      <button>Zapisz konto</button>
+      <p class="hint">Przed pierwszym połączeniem włącz w SUPLA Cloud dodawanie urządzeń. Po zapisaniu supla-device uruchomi się ponownie z nowymi danymi.</p>
+    </form>
+    <div id="supla-status"></div>
+  </section>
+
+  <section>
+    <h2>Parowanie urządzenia</h2>
+    <form id="commission-form">
+      <div class="field">
+        <label for="code">Kod parowania</label>
+        <input type="password" id="code" autocomplete="off" placeholder="MT:… albo kod numeryczny" required>
+        <p class="hint">Kod z naklejki urządzenia albo wygenerowany w aplikacji IKEA przy udostępnianiu.</p>
+      </div>
+      <div class="field">
+        <div class="actions" style="justify-content:flex-start">
+          <button type="button" id="qr-camera-button">Zrób zdjęcie kodu QR</button>
+          <button type="button" id="qr-gallery-button">Wybierz zdjęcie z galerii</button>
+        </div>
+        <input type="file" id="qr-camera" accept="image/*" capture="environment" hidden>
+        <input type="file" id="qr-gallery" accept="image/*" hidden>
+        <div id="qr-status"></div>
+      </div>
+      <div class="field">
+        <label class="check"><input type="checkbox" id="network-only">
+          <span>Urządzenie jest już w sieci (udostępnione z innej aplikacji) — paruj bez Bluetootha</span></label>
+      </div>
+      <button class="primary" id="commission-button">Sparuj</button>
+      <p class="hint" id="commission-hint"></p>
+    </form>
+    <div id="commission-status"></div>
+
+    <details>
+      <summary>Dataset sieci Thread</summary>
+      <div>
+        <p class="hint" id="dataset-state"></p>
+        <form id="dataset-form">
+          <div class="field">
+            <label for="dataset">Dataset (hex)</label>
+            <input type="password" id="dataset" autocomplete="off" required>
+            <p class="hint">Wynik polecenia <code>docker exec otbr ot-ctl dataset active -x</code>. Potrzebny tylko przy parowaniu bezpośrednim przez Bluetooth.</p>
+          </div>
+          <button>Zapisz dataset</button>
+        </form>
+        <div id="dataset-status"></div>
+      </div>
+    </details>
+  </section>
+  <section>
+    <h2>Kopie zapasowe</h2>
+    <div id="backups"><p class="empty">Wczytywanie…</p></div>
+    <p class="hint">Kopia zawiera wszystko, czego nie da się odtworzyć: tożsamość kontrolera Matter (parowania), klucze sieci Thread, identyfikator urządzenia SUPLA i konfigurację kanałów. Zawiera sekrety — trzymaj ją w bezpiecznym miejscu. Odtwarzanie: <code>sudo ./host/restore.sh plik.tar.gz</code>.</p>
+  </section>
+</main>
+
+<script>
+function renderBackups(state) {
+  const box = $("backups");
+  if (!state.backups.length) {
+    box.replaceChildren(el("p", "empty", "Brak kopii. Pierwsza powstanie zgodnie z harmonogramem (domyślnie codziennie o 03:30)."));
+    return;
+  }
+  box.replaceChildren(...state.backups.map((b) => {
+    const row = el("div", "row");
+    row.style.gridTemplateColumns = "1fr auto";
+    const info = el("div");
+    info.append(el("div", "title", new Date(b.time * 1000).toLocaleString("pl-PL")));
+    info.append(el("div", "meta", `${b.name} · ${(b.size / 1024).toFixed(0)} kB`));
+    const link = el("a", "button", "Pobierz");
+    link.href = `/api/backups/${encodeURIComponent(b.name)}`;
+    link.setAttribute("download", "");
+    const actions = el("div", "actions");
+    actions.append(link);
+    row.append(info, actions);
+    return row;
+  }));
+}
+
+const $ = (id) => document.getElementById(id);
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+const STATE_LABEL = { on: "włączone", off: "wyłączone", unavailable: "niedostępne" };
+let busy = false;
+let suplaDirty = false;
+
+async function post(path, payload) {
+  const response = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+  const data = await response.json().catch(() => ({}));
+  if (response.status === 401) { location.href = "/login"; throw new Error("wymagane logowanie"); }
+  if (!response.ok) throw new Error(data.error || ("błąd " + response.status));
+  return data;
+}
+
+function notice(container, kind, text) {
+  container.replaceChildren(text ? el("div", "notice " + kind, text) : "");
+}
+
+function diagLink(nodeId) {
+  const link = el("a", "button", "Diagnostyka");
+  link.href = `/api/nodes/${encodeURIComponent(nodeId)}/diagnostics`;
+  link.title = "Pobierz zrzut atrybutów węzła (bez numeru seryjnego i danych sieci) — do dopisania obsługi urządzenia";
+  link.setAttribute("download", "");
+  return link;
+}
+
+function renderDevices(state) {
+  const box = $("devices");
+  if (!state.devices.length) {
+    box.replaceChildren(el("p", "empty", state.auto_add
+      ? "Brak kanałów. Sparuj urządzenie — pojawi się tu samo."
+      : "Brak kanałów. Sparuj urządzenie i dodaj je z listy poniżej."));
+    return;
+  }
+  box.replaceChildren(...state.devices.map((dev) => {
+    const row = el("div", "row");
+    const chan = el("div", "chan", String(dev.supla_channel));
+    chan.append(el("small", null, "kanał"));
+    const info = el("div");
+    info.append(el("div", "title", dev.caption || dev.name));
+    info.append(el("div", "meta", `${dev.name} · węzeł ${dev.node_id}, endpoint ${dev.endpoint}`));
+    info.append(el("div", "state " + dev.state, STATE_LABEL[dev.state]));
+    const actions = el("div", "actions");
+    for (const [command, label] of [["on", "Włącz"], ["off", "Wyłącz"]]) {
+      const button = el("button", null, label);
+      button.disabled = dev.state === "unavailable" || dev.state === command;
+      button.onclick = () => act(() => post(`/api/devices/${encodeURIComponent(dev.name)}/command`, { command }));
+      actions.append(button);
+    }
+    const rename = el("button", null, "Nazwa");
+    rename.onclick = () => {
+      const caption = prompt("Nazwa kanału (SUPLA przyjmuje ją tylko przy pierwszej rejestracji kanału):", dev.caption);
+      if (caption !== null) act(() => post(`/api/devices/${encodeURIComponent(dev.name)}/caption`, { caption }));
+    };
+    actions.append(rename, diagLink(dev.node_id));
+    row.append(chan, info, actions);
+    return row;
+  }));
+}
+
+function renderCandidates(state) {
+  $("candidates-section").hidden = !state.candidates.length;
+  $("candidates").replaceChildren(...state.candidates.map((c) => {
+    const row = el("div", "row");
+    row.append(el("div", "chan", "–"));
+    const info = el("div");
+    info.append(el("div", "title", c.product || "Urządzenie Matter"));
+    info.append(el("div", "meta", `${c.vendor || "?"} · węzeł ${c.node_id}` + (c.endpoint != null ? `, endpoint ${c.endpoint}` : "")));
+    if (c.reason) info.append(el("div", "meta", c.reason));
+    const actions = el("div", "actions");
+    if (c.supported) {
+      const add = el("button", "primary", "Dodaj kanał");
+      add.onclick = () => {
+        if (confirm("Dodać kanał SUPLA? Kanału nie da się później usunąć bez usunięcia całego urządzenia z SUPLA Cloud."))
+          act(() => post("/api/devices", { node_id: c.node_id, endpoint: c.endpoint }));
+      };
+      actions.append(add);
+    }
+    actions.append(diagLink(c.node_id));
+    row.append(info, actions);
+    return row;
+  }));
+}
+
+function render(state) {
+  const pills = [
+    ["MQTT", state.mqtt_connected],
+    ["Matter" + (state.server.version ? " · " + state.server.version.split(" ")[0] : ""), state.matter_connected],
+  ];
+  $("pills").replaceChildren(...pills.map(([text, ok]) => el("span", "pill " + (ok ? "ok" : "bad"), text + (ok ? "" : " — brak połączenia"))));
+  notice($("notices"), "warn", state.supla_error);
+  $("logout").hidden = !state.auth;
+  renderDevices(state);
+  renderCandidates(state);
+  renderBackups(state);
+  if (!suplaDirty && document.activeElement.id !== "supla-server" && document.activeElement.id !== "supla-mail") {
+    $("supla-server").value = state.supla.server || "";
+    $("supla-mail").value = state.supla.mail || "";
+  }
+
+  const c = state.commission;
+  $("commission-button").disabled = c.running || !state.matter_connected;
+  $("commission-button").textContent = c.running ? "Parowanie trwa…" : "Sparuj";
+  notice($("commission-status"), c.error ? "bad" : "ok", c.error ? "Parowanie nie powiodło się: " + c.error : c.message);
+  $("commission-hint").textContent = state.server.bluetooth ? "" :
+    "Bluetooth w kontrolerze jest wyłączony — dostępne tylko parowanie urządzeń będących już w sieci.";
+  if (!state.server.bluetooth && !$("network-only").dataset.touched) $("network-only").checked = true;
+  $("dataset-state").textContent = state.server.thread_dataset_set ? "Dataset jest zapisany w kontrolerze." : "Dataset nie jest jeszcze ustawiony.";
+}
+
+async function refresh() {
+  try {
+    const response = await fetch("/api/state");
+    if (response.status === 401) { location.href = "/login"; return; }
+    if (!response.ok) throw new Error("błąd " + response.status);
+    render(await response.json());
+  } catch (err) {
+    $("pills").replaceChildren(el("span", "pill bad", "Brak połączenia z łącznikiem"));
+  }
+}
+
+async function act(fn, statusBox) {
+  if (busy) return;
+  busy = true;
+  try { await fn(); if (statusBox) notice(statusBox, "ok", "Zapisano."); }
+  catch (err) { if (statusBox) notice(statusBox, "bad", err.message); else alert(err.message); }
+  finally { busy = false; refresh(); }
+}
+
+async function shrink(file) {
+  // Zdjęcia z telefonu mają kilka MB — zmniejszamy je przed wysłaniem; kod QR pozostaje czytelny.
+  try {
+    const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+    const scale = Math.min(1, 2000 / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(bitmap.width * scale);
+    canvas.height = Math.round(bitmap.height * scale);
+    canvas.getContext("2d").drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.9));
+    if (blob) return blob;
+  } catch (err) { /* przeglądarka nie umie przetworzyć pliku — wysyłamy oryginał */ }
+  return file;
+}
+
+async function readQr(input) {
+  const file = input.files[0];
+  input.value = "";
+  if (!file) return;
+  const box = $("qr-status");
+  notice(box, "warn", "Odczytuję kod ze zdjęcia…");
+  try {
+    const photo = await shrink(file);
+    const response = await fetch("/api/qr", { method: "POST", headers: { "Content-Type": photo.type || "image/jpeg" }, body: photo });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || ("błąd " + response.status));
+    $("code").value = data.code;
+    notice(box, "ok", "Rozpoznano kod parowania Matter. Sprawdź ustawienia poniżej i naciśnij „Sparuj”.");
+  } catch (err) {
+    notice(box, "bad", "Nie udało się odczytać kodu: " + err.message);
+  }
+}
+$("qr-camera-button").onclick = () => $("qr-camera").click();
+$("qr-gallery-button").onclick = () => $("qr-gallery").click();
+$("qr-camera").addEventListener("change", (e) => readQr(e.target));
+$("qr-gallery").addEventListener("change", (e) => readQr(e.target));
+
+$("supla-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  act(async () => {
+    await post("/api/supla", { server: $("supla-server").value, mail: $("supla-mail").value });
+    suplaDirty = false;
+  }, $("supla-status"));
+});
+for (const id of ["supla-server", "supla-mail"]) $(id).addEventListener("input", () => { suplaDirty = true; });
+
+$("logout").onclick = async () => { await post("/api/logout", {}).catch(() => {}); location.href = "/login"; };
+
+$("network-only").addEventListener("change", (e) => { e.target.dataset.touched = "1"; });
+$("commission-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  act(async () => {
+    await post("/api/commission", { code: $("code").value, network_only: $("network-only").checked });
+    $("code").value = "";
+  });
+});
+$("dataset-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  act(async () => { await post("/api/thread-dataset", { dataset: $("dataset").value }); $("dataset").value = ""; }, $("dataset-status"));
+});
+
+refresh();
+setInterval(refresh, 2000);
+</script>
+</body>
+</html>
