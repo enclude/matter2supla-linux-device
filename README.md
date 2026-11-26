@@ -1,6 +1,6 @@
 # matter2supla-linux-device
 
-Most **Matter over Thread → SUPLA** na Linuksie. Urządzenia Matter (na początek gniazdko IKEA GRILLPLATS) są widoczne w SUPLA Cloud jako kanały jednego wirtualnego urządzenia SUPLA „Matter2Supla”, ze sterowaniem w obie strony.
+Most **Matter over Thread → SUPLA** na Linuksie. Urządzenia Matter (gniazdka, światła) są widoczne w SUPLA Cloud jako kanały jednego wirtualnego urządzenia SUPLA „Matter2Supla”, ze sterowaniem w obie strony.
 
 ```text
 GRILLPLATS / KAJPLATS / czujniki
@@ -13,14 +13,13 @@ ESP32-C5 (firmware ot_rcp) ──USB── host Linux (Raspberry Pi)
                                     └─ supla          supla-device dla Linuksa ⇄ SUPLA Cloud
 ```
 
-Wszystkie usługi działają w kontenerach (`docker compose`) w sieci hosta - Matter wymaga IPv6, multicastu i mDNS. Własnym kodem jest tylko `bridge/` (Python) i konfiguracja. ESP32-C5 dostaje **niezmieniony** przykład `ot_rcp` z ESP-IDF - w repozytorium nie ma firmware dla ESP.
+Wszystkie usługi działają w kontenerach (`docker compose`) w sieci hosta - Matter wymaga IPv6, multicastu i mDNS. ESP32-C5 pracuje jako radio Thread na USB, z niezmienionym firmware `ot_rcp` z ESP-IDF.
 
 ## Wymagania
 
-- **Host:** Raspberry Pi z 64-bitowym systemem i wbudowanym Bluetooth (uruchomione na RPi 4B, Raspberry Pi OS / Debian 13 arm64), podłączony do LAN. Inny prawdziwy Linux też się nadaje; wariant z maszyną wirtualną na Proxmox opisuje [docs/proxmox-vm.md](docs/proxmox-vm.md). **Nie WSL2** (NAT psuje mDNS i IPv6).
+- **Host:** Raspberry Pi z 64-bitowym systemem i wbudowanym Bluetooth (sprawdzone na RPi 4B, Raspberry Pi OS / Debian 13 arm64), podłączony do LAN. Inny Linux też się nadaje, ale nie WSL2.
 - **Radio Thread:** płytka ESP32-C5 z firmware `ot_rcp`, podłączona portem **UART** (mostek USB-UART) przez przedłużacz do portu USB 2.0.
 - **Bluetooth w hoście** - potrzebny do parowania urządzeń bezpośrednio do własnej sieci Thread.
-- Docker z wtyczką Compose i buildx.
 - Konto SUPLA z włączonym dodawaniem urządzeń (cloud.supla.org → „Moja SUPLA” → rejestracja urządzeń).
 
 ## Szybki start
@@ -29,19 +28,13 @@ Skrót dla Raspberry Pi; wersja krok po kroku, z wyjaśnieniami: [docs/instalacj
 
 1. **Dongle.** Wgraj firmware radia Thread (`ot_rcp`) na płytkę ESP32-C5 prosto z przeglądarki: **<https://matter2supla.zjawa.tech>** - podłącz płytkę kablem USB, kliknij „Wgraj firmware” i wybierz port (Chrome lub Edge na komputerze). Uwaga: wgranie kasuje dotychczasowy firmware płytki. Samodzielna budowa i wgranie przez esptool: [docs/dongle-esp32-c5.md](docs/dongle-esp32-c5.md).
 
-   ```bash
-   ./host/build-rcp-docker.sh rcp-build      # wypisuje polecenia esptool do wgrania
-   ```
-
 2. **Instalacja.** Podłącz dongle do Raspberry Pi i w katalogu projektu uruchom jedno polecenie:
 
    ```bash
    sudo ./host/install.sh --lan              # bez --lan panel działa tylko lokalnie (127.0.0.1)
    ```
 
-   Skrypt instaluje Dockera (jeśli go nie ma), ustawia system, rozpoznaje dongle, tworzy `.env` i katalogi, tworzy sieć Thread, uruchamia usługi, przekazuje dane sieci kontrolerowi Matter i włącza codzienną kopię zapasową. Można go uruchamiać ponownie - niczego istniejącego nie nadpisuje i nie tworzy sieci Thread od nowa. Na końcu wypisuje adres panelu.
-
-   Obrazy `bridge` i `supla-device` są pobierane z GHCR, jeśli są tam opublikowane; w przeciwnym razie skrypt buduje je na miejscu (na Raspberry Pi trwa to kilkanaście minut).
+   Skrypt instaluje Dockera, ustawia system, rozpoznaje dongle, tworzy sieć Thread, uruchamia usługi i włącza codzienną kopię zapasową. Można go uruchamiać ponownie - niczego istniejącego nie nadpisuje. Na końcu wypisuje adres panelu.
 
 3. **Panel WWW** - wpisz konto SUPLA i sparuj urządzenie kodem lub zdjęciem kodu QR: [docs/panel-www.md](docs/panel-www.md), [docs/parowanie.md](docs/parowanie.md).
 
@@ -49,12 +42,12 @@ Skrót dla Raspberry Pi; wersja krok po kroku, z wyjaśnieniami: [docs/instalacj
 
 4. **Kopia zapasowa** powstaje codziennie o 03:30; pobierz jedną od razu po pierwszym parowaniu i trzymaj poza urządzeniem: [docs/kopie-zapasowe.md](docs/kopie-zapasowe.md).
 
-Skrypt był uruchomiony na działającej instalacji (Raspberry Pi 4B): niczego nie zmienił w konfiguracji, tożsamości urządzenia ani sieci Thread, a usługi wróciły do pracy. **Pełna instalacja nim na czystym systemie nie była jeszcze sprawdzona** - gdyby zawiódł, te same kroki są opisane ręcznie w instrukcji.
+5. **Aktualizacja** - panel informuje o nowym wydaniu; aktualizuje się ręcznie: `sudo ./host/update.sh` ([docs/aktualizacja.md](docs/aktualizacja.md)).
 
 ## Najważniejsze ostrzeżenia
 
 - **Kanały SUPLA są trwałe.** Wolno je tylko dopisywać; usunięcie kanału lub zmiana typu kończy się „Channel conflict” i usunięciem urządzenia z SUPLA Cloud razem z historią. Szczegóły: [docs/jak-to-dziala.md](docs/jak-to-dziala.md).
-- **Sekrety poza repozytorium:** `.env`, `data/`, `backups/`, `config/devices.yaml`, `config/supla/` są w `.gitignore`. Dataset Thread, dane kontrolera Matter, GUID/AUTHKEY SUPLA i kody parowania `MT:…` nie mogą trafić do repozytorium. Kopie zapasowe zawierają to wszystko.
+- **Kopie zapasowe zawierają sekrety** (klucze sieci Thread, parowania Matter, tożsamość urządzenia SUPLA) - trzymaj je w bezpiecznym miejscu.
 - **Panel nie szyfruje połączenia** (HTTP). Udostępniaj go tylko w zaufanej sieci LAN i nigdy do Internetu; to samo dotyczy REST OTBR, WebSocket `matter-server` i brokera MQTT (domyślnie nasłuchują tylko na `127.0.0.1`).
 
 ## Stan projektu
@@ -65,45 +58,13 @@ Co obsługuje łącznik:
 | --- | --- |
 | Gniazdko / przekaźnik (klaster OnOff): stan, sterowanie, dostępność | działa na sprzęcie (GRILLPLATS) |
 | Panel WWW: konto SUPLA, parowanie kodem i zdjęciem QR, kanały, diagnostyka, kopie | działa na sprzęcie |
-| Światła z regulacją bieli (KAJPLATS) jako kanał SUPLA „ściemniacz CCT”: jasność i temperatura bieli | działa na sprzęcie: polecenie z SUPLA Cloud dotarło do żarówki, stan wraca; wymaga protokołu SUPLA 28 na serwerze. Sterowanie także suwakami w panelu |
-| Grupy świateł: jeden kanał SUPLA dla kilku świateł tego samego rodzaju, obok zwykłych kanałów pojedynczych ([opis](docs/panel-www.md#grupy-świateł)) | napisane i sprawdzone testami; na prawdziwych żarówkach jeszcze niesprawdzone |
-| Licznik energii gniazdka (napięcie, prąd, moc, energia) - kanał jednofazowy | działa na sprzęcie (GRILLPLATS): pomiary widoczne w aplikacji SUPLA; przy braku danych kanał przechodzi w offline (sprawdzone lokalnie) |
+| Wersjonowane wydania i ręczna aktualizacja `host/update.sh` z kopią i wycofaniem | działa na sprzęcie; wycofanie sprawdzone tylko na atrapach |
+| Światła z regulacją bieli (KAJPLATS) jako kanał SUPLA „ściemniacz CCT”: jasność i temperatura bieli | działa na sprzęcie; wymaga protokołu SUPLA 28 na serwerze |
+| Grupy świateł: jeden kanał SUPLA dla kilku świateł tego samego rodzaju, obok zwykłych kanałów pojedynczych ([opis](docs/panel-www.md#grupy-świateł)) | sprawdzone testami, na prawdziwych żarówkach jeszcze nie |
+| Licznik energii gniazdka (napięcie, prąd, moc, energia) - kanał jednofazowy | działa na sprzęcie (GRILLPLATS) |
 | Czujniki, inne typy urządzeń | nieobsługiwane - można sparować i pobrać zrzut diagnostyczny |
 
-### Sprawdzone bez sprzętu (2026-11-25, maszyna deweloperska)
-
-- 78 testów jednostkowych łącznika oraz test całości z prawdziwym brokerem Mosquitto.
-- W zbudowanym obrazie `bridge`: odczyt kodu `MT:…` z wygenerowanego zdjęcia kodu QR oraz zapis konta SUPLA z panelu (przez API).
-- Stos bez OTBR (`mqtt`, `matter-server` 1.6.1, `bridge`, `supla`) z węzłami testowymi zaimportowanymi do kontrolera: gniazdko pojawiło się samo jako kanał 0, a `supla-device` wystartował z wygenerowaną konfiguracją; czujnik i ściemniana żarówka trafiły na listę „bez kanału” z diagnostyką do pobrania; komenda i zmiana nazwy z panelu zadziałały, zmiana konfiguracji zrestartowała `supla-device`; żądanie z obcej strony zostało odrzucone.
-- `supla-device` z wygenerowaną konfiguracją: kanał reaguje na `{"state": 1}` / `{"state": 0}`, przechodzi w offline po `{"state": -1}` oraz po 120 s bez wiadomości.
-
-### Sprawdzone na Raspberry Pi 4B (2026-11-26, Raspberry Pi OS / Debian 13 arm64)
-
-- Obrazy `bridge` i `supla-device` budują się na arm64, cały stos działa, border router z donglem ESP32-C5 (mostek CH340, 460800 bodów) jest liderem sieci Thread, kontroler ma włączony Bluetooth.
-- GRILLPLATS sparowany kodem QR przez Bluetooth RPi do sieci Thread dongla; kanał 0 powstał sam; `supla-device` zarejestrował się w SUPLA Cloud; włącz/wyłącz z panelu przełącza gniazdko, a stan wraca z urządzenia i trafia do `supla-device` w ułamku sekundy.
-- Naciśnięcie przycisku na gniazdku zmienia stan w aplikacji SUPLA (potwierdzone przez użytkownika).
-- Żarówka KAJPLATS E27 WS sparowana zdjęciem kodu QR z telefonu przez panel (bez kanału SUPLA - patrz tabela wyżej).
-- Parowanie przez Bluetooth RPi 4 bywa zawodne (połączenie udaje się w części prób) - nieudane parowanie wystarczy ponowić.
-- Restart `supla-device` przy włączonym gniazdku nie wyłącza go.
-- Odłączenie gniazdka na krótko i ponowne włożenie: gniazdko wraca do sieci Thread samo, kontroler odnawia sesję po ok. 1–2 minutach; w tym czasie komendy kończą się błędem.
-- Restart Raspberry Pi: po ok. minucie wszystkie usługi działają, border router jest liderem tej samej sieci Thread, gniazdko jest dostępne bez ponownego parowania, `supla-device` ponownie rejestruje się w SUPLA Cloud.
-- Kopie zapasowe: tworzenie, harmonogram, pobieranie z panelu i rozpakowanie z porównaniem zawartości.
-
-### Sprawdzone na VM Ubuntu 26.04 na Proxmox (2026-11-25, wariant porzucony)
-
-- Dongle po USB passthrough widoczny jako `/dev/ttyUSB0`; OTBR tworzy sieć Thread (stan `leader`); restart VM - stos i sieć wracają same; panel z LAN z logowaniem formularzem.
-- Bluetooth przez passthrough adaptera hosta: kontroler zgłaszał włączony Bluetooth, ale **parowanie się nie udało** - ten adapter nie odbierał żadnych pakietów. Szczegóły: [docs/proxmox-vm.md](docs/proxmox-vm.md).
-
-### Niesprawdzone
-
-- Sterowanie gniazdkiem z aplikacji SUPLA (potwierdzona jest zmiana stanu w aplikacji po naciśnięciu przycisku oraz sterowanie z panelu).
-- Odłączenie gniazdka na ponad 2 minuty → kanał offline w SUPLA.
-- Czy SUPLA Cloud przyjmuje kanał dopisany do już zarejestrowanego urządzenia bez dodatkowych kroków (być może trzeba na chwilę włączyć rejestrację urządzeń).
-- Pełne odtworzenie kopii zapasowej na drugim urządzeniu.
-- Wersjonowane wydania, powiadomienie o nowej wersji w panelu i aktualizacja skryptem `host/update.sh` ([docs/aktualizacja.md](docs/aktualizacja.md)) - sprawdzone tylko lokalnie, na atrapach.
-- Skrypt `host/flash-rcp.sh` (droga z zainstalowanym ESP-IDF) oraz wgrywanie firmware z Linuksa - wgrywano z Windows.
-- Parowanie przez udostępnienie z innej aplikacji (bez Bluetootha).
-- Inne modele Raspberry Pi i inne dystrybucje niż wymienione wyżej.
+Jeszcze niesprawdzone na sprzęcie: instalacja `host/install.sh` na czystym systemie, odtworzenie kopii zapasowej na drugim urządzeniu, parowanie przez udostępnienie z innej aplikacji (bez Bluetootha), płytki ESP32-C6 i ESP32-H2 jako dongle, inne modele Raspberry Pi.
 
 ## Dokumentacja
 
@@ -126,7 +87,7 @@ Spis treści: [docs/README.md](docs/README.md).
 ## Komponenty zewnętrzne
 
 - [openthread/ot-br-posix](https://github.com/openthread/ot-br-posix) - obraz `openthread/border-router`
-- [matter-js/matterjs-server](https://github.com/matter-js/matterjs-server) - następca `python-matter-server` (ten zakończono na wersji 8.1.2), to samo API WebSocket
+- [matter-js/matterjs-server](https://github.com/matter-js/matterjs-server)
 - [SUPLA/supla-device](https://github.com/SUPLA/supla-device) - `extras/examples/linux`
 - ESP-IDF, przykład `examples/openthread/ot_rcp`
 
