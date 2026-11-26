@@ -33,6 +33,21 @@ _ONOFF_PATH = re.compile(r"^(\d+)/6/0$")
 _SLUG = re.compile(r"[^a-z0-9]+")
 
 
+METER_SUFFIX = " — licznik"
+
+
+def link_meter_captions(devices: list[Device]) -> list[Device]:
+    """Nazwa licznika wynika z nazwy gniazdka na tym samym węźle (nie ustawia się jej osobno)."""
+    plugs = {d.node_id: d for d in devices if d.type == "onoff"}
+    linked = []
+    for dev in devices:
+        plug = plugs.get(dev.node_id) if dev.type == "meter" else None
+        if plug is not None:
+            dev = dataclasses.replace(dev, caption=(plug.caption or plug.name) + METER_SUFFIX)
+        linked.append(dev)
+    return linked
+
+
 class ManagerError(Exception):
     """Błąd operacji zleconej z panelu — treść trafia do użytkownika."""
 
@@ -209,6 +224,7 @@ class Manager:
         )
 
     async def _apply(self, devices: list[Device]) -> None:
+        devices = link_meter_captions(devices)
         check_devices(devices)
         old_topics = set(self.core.set_topics)
         new_config = dataclasses.replace(self.config, devices=tuple(devices))
@@ -290,6 +306,10 @@ class Manager:
             target = self._find(name)
             if target.supla_channel == NO_CHANNEL:
                 raise ManagerError("nazwę można zmienić dopiero, gdy urządzenie ma kanał SUPLA")
+            if target.type == "meter" and any(
+                d.type == "onoff" and d.node_id == target.node_id for d in self.config.devices
+            ):
+                raise ManagerError("nazwa licznika wynika z nazwy gniazdka — zmień nazwę gniazdka")
             caption = caption.strip()[:100]
             devices = [
                 dataclasses.replace(d, caption=caption or None) if d is target else d
@@ -417,6 +437,9 @@ class Manager:
             "type": dev.type,
             "supla_channel": dev.supla_channel,
             "state": {1: "on", 0: "off"}.get(state, "unavailable"),
+            # nazwa licznika wynika z nazwy gniazdka i nie jest edytowalna
+            "caption_linked": dev.type == "meter"
+            and any(d.type == "onoff" and d.node_id == dev.node_id for d in self.config.devices),
         }
         if dev.type == "light_cct":
             current = self.core.light_state(dev)

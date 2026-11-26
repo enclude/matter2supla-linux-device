@@ -20,7 +20,11 @@ LOCK_FILE_NAME = "channels.lock.json"
 STATE_FILES_PATH = "/var/lib/supla-device"
 
 # typ urządzenia w devices.yaml -> typ kanału supla-device
-SUPLA_TYPES = {"onoff": "CustomRelay", "light_cct": "MatterLight", "meter": "ElectricityMeterParsed"}
+SUPLA_TYPES = {"onoff": "CustomRelay", "light_cct": "MatterLight", "meter": "MatterMeter"}
+
+# Nazwy typów z YAML oznaczające ten sam typ kanału po stronie serwera SUPLA — przejście
+# między nimi nie narusza trwałości kanałów (MatterMeter to jednofazowy ElectricityMeterParsed).
+_SAME_SUPLA_TYPE = {"ElectricityMeterParsed": "MatterMeter"}
 
 # pomiar licznika (klucz w komunikacie stanu) -> parametr fazy w ElectricityMeterParsed.
 # Jednostki po stronie SUPLA: V, A, W, kWh; częstotliwość (Hz) jest parametrem całego kanału.
@@ -171,7 +175,7 @@ def check_lock(config: Config, locked: dict[str, dict[str, str]]) -> None:
         new = current.get(number)
         if new is None:
             problems.append(f"kanał {number} ({old.get('name')}) został usunięty")
-        elif new["type"] != old.get("type"):
+        elif new["type"] != _SAME_SUPLA_TYPE.get(old.get("type"), old.get("type")):
             problems.append(f"kanał {number} zmienił typ z {old.get('type')} na {new['type']}")
     if problems:
         raise ChannelConflictError(

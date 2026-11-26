@@ -63,10 +63,12 @@ Budowa obu obrazów była sprawdzona na x86-64 i na arm64 (Raspberry Pi 4B).
 
 `supla-device/extensions/` zawiera własne typy kanałów dołączane przy budowie obrazu (`SUPLA_LINUX_EXTENSION_DIRS` w `supla-device/Dockerfile`). `matter_light` dodaje typ `MatterLight` — ściemniacz z regulacją bieli: przekazuje jasność i biel z SUPLA do łącznika i odbiera stan światła. Wersja `supla-device` dla Linuksa ma dla świateł tylko klasę testową bez sterowania, stąd własne rozszerzenie.
 
+`matter_meter` dodaje typ `MatterMeter` — standardowy `ElectricityMeterParsed` zgłaszany jako jednofazowy, który przy nieważnych danych (urządzenie niedostępne, stan wygasł) przełącza kanał w offline.
+
 ## Znane ograniczenia
 
-- Licznik energii: `ElectricityMeterParsed` przy braku lub wygaśnięciu danych nie przełącza kanału w offline (zgłasza tylko brak pomiarów) i pokazuje kanał jako trójfazowy z pustymi fazami 2 i 3. Poprawienie tego wymagałoby kolejnego rozszerzenia.
 - GRILLPLATS (fw 1.4.6) zgłasza częstotliwość w innej jednostce niż specyfikacja, więc łącznik jej nie przekazuje.
+- Nazwa kanału nadana w panelu trafia do SUPLA tylko przy pierwszej rejestracji kanału; późniejsze zmiany w panelu i w Cloud są od siebie niezależne.
 
 ## Zasady
 

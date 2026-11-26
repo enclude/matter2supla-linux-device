@@ -170,7 +170,7 @@ def test_generated_supla_channel(tmp_path):
     document = build_supla_config(config, "svr0.example.org", "user@example.org")
     assert "proto" not in document["supla"]
     assert document["channels"][1] == {
-        "type": "ElectricityMeterParsed",
+        "type": "MatterMeter",
         "name": "licznik",
         "channel_number": 1,
         "source": {"type": "MQTT", "state_topic": STATE, "expiration_time_sec": 120},
@@ -178,7 +178,7 @@ def test_generated_supla_channel(tmp_path):
         "phase_1": [{"voltage": "voltage"}, {"current": "current"}, {"power_active": "power"}, {"fwd_act_energy": "energy"}],
     }
     assert document["channels"][2] == {
-        "type": "ElectricityMeterParsed",
+        "type": "MatterMeter",
         "name": "inny",
         "channel_number": 2,
         "initial_caption": "Inny",
@@ -187,7 +187,7 @@ def test_generated_supla_channel(tmp_path):
         "frequency": "frequency",
         "phase_1": [{"power_active": "power"}],
     }
-    assert lock_entries(config)["1"] == {"type": "ElectricityMeterParsed", "name": "licznik"}
+    assert lock_entries(config)["1"] == {"type": "MatterMeter", "name": "licznik"}
     output = tmp_path / "supla-device.yaml"
     write_supla_config(config, output, "svr0.example.org", "user@example.org")
     # kanału licznika nie wolno potem zamienić na inny typ ani usunąć
@@ -226,11 +226,11 @@ async def test_plug_gets_relay_and_meter_channels(tmp_path):
     )
     assert load_config(tmp_path / "devices.yaml").devices == manager.config.devices
     supla = yaml.safe_load((tmp_path / "supla" / "supla-device.yaml").read_text(encoding="utf-8"))
-    assert [c["type"] for c in supla["channels"]] == ["CustomRelay", "ElectricityMeterParsed"]
+    assert [c["type"] for c in supla["channels"]] == ["CustomRelay", "MatterMeter"]
     assert supla["channels"][1]["source"]["state_topic"] == STATE
     assert "output" not in supla["channels"][1]
     lock = json.loads((tmp_path / "supla" / "channels.lock.json").read_text(encoding="utf-8"))
-    assert lock["channels"]["1"] == {"type": "ElectricityMeterParsed", "name": "grillplats_plug_2_meter"}
+    assert lock["channels"]["1"] == {"type": "MatterMeter", "name": "grillplats_plug_2_meter"}
     # komendy subskrybowane tylko dla gniazdka
     assert manager.mqtt.subscribed == ["m2s/2/1/onoff/set"]
     assert (STATE, json.dumps({"voltage": 230.0, "current": 0.0, "power": 0.0, "energy": 0.0})) in manager.mqtt.published
@@ -264,3 +264,47 @@ async def test_meter_waits_when_auto_add_is_off(tmp_path):
     assert [(c["endpoint"], c.get("type"), c["supported"]) for c in manager.candidates()] == [(1, "onoff", True), (2, "meter", True)]
     dev = await manager.add_device(2, 2)
     assert (dev.type, dev.supla_channel, dev.measurements) == ("meter", 0, MEASUREMENTS)
+
+
+def test_lock_accepts_upgrade_from_standard_meter_type(tmp_path):
+    """Kanał utworzony jako ElectricityMeterParsed przechodzi na MatterMeter bez --force."""
+    import json
+
+    from m2s_bridge.supla_config import LOCK_FILE_NAME, write_supla_config
+
+    config = parse_config(
+        {"devices": [{"name": "licznik", "node_id": 2, "endpoint": 2, "type": "meter", "supla_channel": 0,
+                      "measurements": ["voltage", "current", "power", "energy"]}]}
+    )
+    out = tmp_path / "supla-device.yaml"
+    (tmp_path / LOCK_FILE_NAME).write_text(
+        json.dumps({"channels": {"0": {"type": "ElectricityMeterParsed", "name": "licznik"}}}), encoding="utf-8"
+    )
+    write_supla_config(config, out, "s.example.org", "u@example.org")
+    lock = json.loads((tmp_path / LOCK_FILE_NAME).read_text(encoding="utf-8"))
+    assert lock["channels"]["0"]["type"] == "MatterMeter"
+
+
+async def test_meter_caption_follows_plug_and_cannot_be_edited(tmp_path):
+    """Nazwa licznika jest powiązana z nazwą gniazdka na tym samym węźle."""
+    node = json.loads((Path(__file__).parent / "fixtures" / "ikea-grillplats-plug.json").read_text(encoding="utf-8"))["data"]["node"]
+    node["available"] = True
+    manager = Manager(parse_config({}), tmp_path / "devices.yaml", tmp_path / "supla" / "supla-device.yaml", "s.example.org", "u@example.org")
+    manager.mqtt = FakeMqtt()
+    client = FakeClient()
+    manager.matter_client = client
+    await manager.core.matter_connected(client, [node])
+    await manager.auto_add()
+    plug = next(d for d in manager.config.devices if d.type == "onoff")
+    licznik = next(d for d in manager.config.devices if d.type == "meter")
+    assert licznik.caption == f"{plug.caption} — licznik"
+
+    await manager.set_caption(plug.name, "Pralka")
+    licznik = next(d for d in manager.config.devices if d.type == "meter")
+    assert licznik.caption == "Pralka — licznik"
+    assert next(d for d in load_config(tmp_path / "devices.yaml").devices if d.type == "meter").caption == "Pralka — licznik"
+
+    with pytest.raises(ManagerError, match="gniazdka"):
+        await manager.set_caption(licznik.name, "Własna nazwa")
+    view = {d["name"]: d for d in manager.snapshot()["devices"]}
+    assert view[licznik.name]["caption_linked"] is True and view[plug.name]["caption_linked"] is False

@@ -34,6 +34,9 @@
   .notice.ok { background: transparent; border: 1px solid var(--on); color: var(--on); }
   .row { display: grid; grid-template-columns: 44px 1fr auto; gap: 12px; align-items: center; padding: 12px 0; border-top: 1px solid var(--line); }
   .row:first-of-type { border-top: 0; padding-top: 0; }
+  .row.child { margin-left: 28px; padding: 10px 0 10px 14px; border-top: 0; border-left: 2px solid var(--line); margin-top: -4px; margin-bottom: 8px; }
+  .row.child .title { font-weight: 500; }
+  .row.child .chan { font-weight: 500; color: var(--muted); }
   .row:last-child { padding-bottom: 0; }
   .chan { font-variant-numeric: tabular-nums; font-weight: 600; text-align: center; border: 1px solid var(--line); border-radius: 8px; padding: 6px 0; }
   .chan small { display: block; font-size: 10px; font-weight: 400; color: var(--muted); }
@@ -251,8 +254,14 @@ function renderDevices(state) {
       : "Brak kanałów. Sparuj urządzenie i dodaj je z listy poniżej."));
     return;
   }
-  box.replaceChildren(...state.devices.map((dev) => {
-    const row = el("div", "row");
+  // Kanał zależny (licznik gniazdka) stoi tuż pod swoim gniazdkiem, z wcięciem.
+  const children = state.devices.filter((d) => d.caption_linked);
+  const ordered = [];
+  for (const dev of state.devices.filter((d) => !d.caption_linked)) {
+    ordered.push(dev, ...children.filter((c) => c.node_id === dev.node_id));
+  }
+  box.replaceChildren(...ordered.map((dev) => {
+    const row = el("div", dev.caption_linked ? "row child" : "row");
     const chan = el("div", "chan", String(dev.supla_channel));
     chan.append(el("small", null, "kanał"));
     const info = el("div");
@@ -263,10 +272,15 @@ function renderDevices(state) {
     const [actions, sliders] = controls(dev);
     const rename = el("button", null, "Nazwa");
     rename.onclick = () => {
-      const caption = prompt("Nazwa kanału (SUPLA przyjmuje ją tylko przy pierwszej rejestracji kanału):", dev.caption);
+      const caption = prompt("Nazwa kanału w panelu. SUPLA przyjmuje ją tylko przy pierwszej rejestracji kanału — później nazwę w SUPLA zmienia się w Cloud lub aplikacji:", dev.caption);
       if (caption !== null) act(() => post(`/api/devices/${encodeURIComponent(dev.name)}/caption`, { caption }));
     };
-    actions.append(rename, diagLink(dev.node_id));
+    if (dev.caption_linked) {
+      // nazwa licznika idzie za nazwą gniazdka; diagnostyka jest wspólna dla całego urządzenia
+      actions.replaceChildren();
+    } else {
+      actions.append(rename, diagLink(dev.node_id));
+    }
     row.append(chan, info, actions);
     if (sliders) row.append(sliders);
     return row;
