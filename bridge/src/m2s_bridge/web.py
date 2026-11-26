@@ -190,6 +190,13 @@ def create_app(
             return web.json_response({"error": str(err)}, status=400)
         except (ConfigError, ValueError, KeyError, TypeError) as err:
             return web.json_response({"error": f"błędne dane: {err}"}, status=400)
+        except OSError as err:
+            # Najczęściej: katalog konfiguracji nie należy do użytkownika, na którym działa łącznik.
+            log.error("panel: błąd zapisu lub odczytu pliku: %s", err)
+            return web.json_response(
+                {"error": f"nie udało się zapisać zmian na dysku: {err.strerror or err} ({err.filename or 'plik'})"},
+                status=500,
+            )
 
     async def index(request: web.Request) -> web.Response:
         html = resources.files("m2s_bridge").joinpath("web_ui.html").read_text(encoding="utf-8")

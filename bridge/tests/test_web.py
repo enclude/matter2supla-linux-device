@@ -289,3 +289,18 @@ def test_sessions_survive_restart_and_follow_password(tmp_path, monkeypatch):
     path.write_text("to nie jest JSON", encoding="utf-8")
     broken = SessionStore("tajne", path)  # uszkodzony plik: po prostu ponowne logowanie
     assert broken.valid(broken.create())
+
+
+async def test_unwritable_config_gives_readable_error(tmp_path, monkeypatch):
+    # Katalog konfiguracji bez prawa zapisu: panel ma podać przyczynę, a nie gołe „błąd 500”.
+    manager, client = await make(tmp_path)
+
+    def fail(*args, **kwargs):
+        raise PermissionError(13, "Permission denied", "/config/devices.yaml.tmp")
+
+    monkeypatch.setattr("m2s_bridge.manager.save_config", fail)
+    response = await client.post("/api/groups", json={"caption": "Salon", "members": []})
+    assert response.status == 500
+    assert "devices.yaml" in (await response.json())["error"]
+    assert manager.groups() == []
+    await client.close()
