@@ -144,7 +144,7 @@ class Manager:
     def _groups_of(self, target: tuple[int, int]) -> list[Device]:
         return [g for g in self.groups() if target in g.members]
 
-    async def refresh_runtime(self) -> None:
+    async def refresh_runtime(self, known_topics: set[str] | None = None) -> None:
         """Uzgadnia listę urządzeń łącznika: kanały SUPLA plus światła bez kanału.
 
         Światło bez kanału też ma swoje tematy MQTT i jest sterowalne z panelu.
@@ -163,12 +163,15 @@ class Manager:
                     endpoint=candidate["endpoint"],
                     type="light_cct",
                     supla_channel=NO_CHANNEL,
-                    caption=str(candidate["product"] or "") or None,
+                    caption=self._local_name(candidate["node_id"], candidate["endpoint"])
+                    or str(candidate["product"] or "")
+                    or None,
                 )
             )
         if tuple(extras) == self._extras and self.core.devices == self.config.devices + self._extras:
             return
-        old_topics = set(self.core.set_topics)
+        # `known_topics`: tematy subskrybowane przed przebudową listy - żeby nie subskrybować ich drugi raz.
+        old_topics = set(self.core.set_topics) if known_topics is None else known_topics
         self._extras = tuple(extras)
         self.core.set_devices(self.config.devices + self._extras)
         mqtt = self.mqtt
@@ -186,6 +189,7 @@ class Manager:
             attrs = node["attributes"]
             base = {
                 "node_id": node_id,
+                "caption": self._local_name(node_id, 0),
                 "available": node["available"],
                 "vendor": attrs.get("0/40/1"),
                 "product": attrs.get("0/40/3"),
@@ -202,7 +206,7 @@ class Manager:
                 if (node_id, endpoint, False) in mapped:
                     continue
                 kind = endpoint_type(attrs, endpoint)
-                entry = {**base, "endpoint": endpoint, "type": kind}
+                entry = {**base, "endpoint": endpoint, "type": kind, "caption": self._local_name(node_id, endpoint)}
                 can_be_channel = kind == "onoff" or (kind == "light_cct" and self.config.lights_as_channels)
                 in_groups = self._groups_of((node_id, endpoint)) if kind == "light_cct" else []
                 # `manual`: kanał nie powstanie sam, ale da się go dodać przyciskiem w panelu.
@@ -257,7 +261,8 @@ class Manager:
             raise ManagerError("wyczerpano numery kanałów SUPLA (0–127)")
         node = self.core.nodes.get(candidate["node_id"], {"attributes": {}})
         label = node["attributes"].get("0/40/5")
-        caption = str(label or candidate["product"] or "")
+        local = self._local_name(candidate["node_id"], candidate["endpoint"]) if kind != "meter" else None
+        caption = str(local or label or candidate["product"] or "")
         measurements: tuple[str, ...] = ()
         if kind == "meter":
             caption = f"{caption} — licznik" if caption else "Licznik energii"
@@ -274,11 +279,27 @@ class Manager:
             measurements=measurements,
         )
 
-    async def _apply(self, devices: list[Device], no_channel: list[tuple[int, int]] | None = None) -> None:
+    def _local_name(self, node_id: int, endpoint: int | None) -> str | None:
+        for named_node, named_endpoint, caption in self.config.names:
+            if (named_node, named_endpoint) == (node_id, endpoint or 0):
+                return caption
+        return None
+
+    async def _apply(
+        self,
+        devices: list[Device],
+        no_channel: list[tuple[int, int]] | None = None,
+        names: list[tuple[int, int, str]] | None = None,
+        regenerate: bool = True,
+    ) -> None:
         devices = link_meter_captions(devices)
         check_devices(devices)
         old_topics = set(self.core.set_topics)
         new_config = dataclasses.replace(self.config, devices=tuple(devices))
+        # Nazwa lokalna dotyczy tylko endpointu bez kanału: po dodaniu kanału żyje w jego `caption`.
+        own = {(d.node_id, d.endpoint) for d in devices if d.type not in (GROUP_TYPE, "meter")}
+        kept = [n for n in (self.config.names if names is None else names) if (n[0], n[1]) not in own]
+        new_config = dataclasses.replace(new_config, names=tuple(kept))
         if no_channel is not None:
             new_config = dataclasses.replace(new_config, no_channel=tuple(dict.fromkeys(no_channel)))
         if self.config_path is not None:
@@ -293,8 +314,9 @@ class Manager:
                 if topic not in old_topics:
                     await mqtt.subscribe(topic, qos=1)
             await self.core.publish_all()
-        await self.refresh_runtime()
-        self.regenerate_supla()
+        await self.refresh_runtime(old_topics)
+        if regenerate:
+            self.regenerate_supla()
 
     async def auto_add(self) -> list[Device]:
         """Dopisuje jako kanały wszystkie obsługiwane, niezmapowane endpointy."""
@@ -357,7 +379,9 @@ class Manager:
                 if endpoint_type(attrs, endpoint) != "light_cct":
                     continue
                 dev = own.get((node_id, endpoint))
-                label = (dev.caption or dev.name) if dev else str(attrs.get("0/40/5") or attrs.get("0/40/3") or "Światło")
+                label = (dev.caption or dev.name) if dev else str(
+                    self._local_name(node_id, endpoint) or attrs.get("0/40/5") or attrs.get("0/40/3") or "Światło"
+                )
                 found[(node_id, endpoint)] = {
                     "label": label,
                     "available": bool(node["available"]),
@@ -478,7 +502,8 @@ class Manager:
         async with self._change_lock:
             target = self._find(name)
             if target.supla_channel == NO_CHANNEL and target.type != GROUP_TYPE:
-                raise ManagerError("nazwę można zmienić dopiero, gdy urządzenie ma kanał SUPLA")
+                await self._set_name(target.node_id, target.endpoint, caption)
+                return
             if target.type == "meter" and any(
                 d.type == "onoff" and d.node_id == target.node_id for d in self.config.devices
             ):
@@ -488,7 +513,24 @@ class Manager:
                 dataclasses.replace(d, caption=caption or None) if d is target else d
                 for d in self.config.devices
             ]
-            await self._apply(devices)
+            # Nazwa jest lokalna: nie przebudowujemy konfiguracji SUPLA (to restartowałoby
+            # supla-device). Do SUPLA trafi jako nazwa początkowa przy najbliższym generowaniu
+            # pliku - nowy kanał, zmiana konta lub serwera, start łącznika.
+            await self._apply(devices, regenerate=False)
+
+    async def set_name(self, node_id: int, endpoint: int, caption: str) -> None:
+        """Lokalna nazwa endpointu bez kanału SUPLA (światło z grupy, urządzenie nieobsługiwane)."""
+        async with self._change_lock:
+            await self._set_name(node_id, endpoint, caption)
+
+    async def _set_name(self, node_id: int, endpoint: int, caption: str) -> None:
+        if node_id not in self.core.nodes:
+            raise ManagerError(f"matter-server nie zna węzła {node_id}")
+        caption = caption.strip()[:100]
+        names = [n for n in self.config.names if (n[0], n[1]) != (node_id, endpoint)]
+        if caption:
+            names.append((node_id, endpoint, caption))
+        await self._apply(list(self.config.devices), names=names, regenerate=False)
 
     async def device_command(self, name: str, command: str) -> None:
         mapped = {"on": "On", "off": "Off", "toggle": "Toggle"}.get(command)

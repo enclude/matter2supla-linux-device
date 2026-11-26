@@ -281,6 +281,11 @@ def create_app(
         await manager.device_command(request.match_info["name"], str(data.get("command", "")))
         return web.json_response({"ok": True})
 
+    async def node_name(request: web.Request) -> web.Response:
+        data = await body(request)
+        await manager.set_name(int(data["node_id"]), int(data.get("endpoint") or 0), str(data.get("caption", "")))
+        return web.json_response({"ok": True})
+
     async def device_identify(request: web.Request) -> web.Response:
         await body(request)
         await manager.identify(request.match_info["name"])
@@ -361,6 +366,7 @@ def create_app(
             web.post("/api/thread-dataset", thread_dataset),
             web.post("/api/devices", add_device),
             web.post("/api/groups", group_create),
+            web.post("/api/names", node_name),
             web.post("/api/groups/{name}/members", group_members),
             web.post("/api/devices/{name}/command", device_command),
             web.post("/api/devices/{name}/caption", device_caption),

@@ -47,3 +47,7 @@ devices: []
 # Endpointy celowo zostawione bez kanału SUPLA (wybór przy parowaniu, światło wyjęte z grupy):
 # no_channel:
 #   - {node_id: 6, endpoint: 1}
+
+# Lokalne nazwy endpointów bez kanału SUPLA (np. świateł należących tylko do grupy):
+# names:
+#   - {node_id: 5, endpoint: 1, caption: Lewa nad stołem}

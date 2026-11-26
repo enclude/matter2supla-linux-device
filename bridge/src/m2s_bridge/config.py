@@ -91,6 +91,9 @@ class Config:
     # Endpointy (węzeł, endpoint) celowo zostawione bez kanału SUPLA - `auto_add` je pomija.
     # Wpis powstaje przy parowaniu z wyborem "bez kanału" albo po usunięciu światła z grupy.
     no_channel: tuple[tuple[int, int], ...] = ()
+    # Lokalne nazwy endpointów bez kanału SUPLA (np. świateł należących tylko do grupy) jako
+    # (węzeł, endpoint, nazwa). Gdy endpoint dostaje kanał, nazwa przechodzi do `caption` kanału.
+    names: tuple[tuple[int, int, str], ...] = ()
 
 
 def _require_int(value: Any, what: str, minimum: int = 0, maximum: int | None = None) -> int:
@@ -133,6 +136,23 @@ def _targets(value: Any, where: str) -> tuple[tuple[int, int], ...]:
             raise ConfigError(f"{where}: powtórzony węzeł {target[0]} endpoint {target[1]}")
         result.append(target)
     return tuple(result)
+
+
+def _names(value: Any) -> tuple[tuple[int, int, str], ...]:
+    if value is None:
+        return ()
+    if not isinstance(value, list):
+        raise ConfigError("names: oczekiwano listy")
+    result: dict[tuple[int, int], str] = {}
+    for index, item in enumerate(value):
+        if not isinstance(item, dict) or not {"node_id", "endpoint", "caption"} <= set(item):
+            raise ConfigError(f"names[{index}]: oczekiwano mapy z polami node_id, endpoint i caption")
+        target = (
+            _require_int(item["node_id"], f"names[{index}].node_id", 1),
+            _require_int(item["endpoint"], f"names[{index}].endpoint", 0, 65535),
+        )
+        result[target] = str(item["caption"])
+    return tuple((node_id, endpoint, caption) for (node_id, endpoint), caption in result.items())
 
 
 def _targets_to_raw(targets: tuple[tuple[int, int], ...]) -> list[dict[str, int]]:
@@ -249,6 +269,7 @@ def parse_config(raw: Any) -> Config:
         web=web,
         devices=tuple(devices),
         no_channel=_targets(raw.get("no_channel"), "no_channel"),
+        names=_names(raw.get("names")),
     )
 
 
@@ -300,6 +321,11 @@ def config_to_raw(config: Config) -> dict[str, Any]:
     }
     if config.no_channel:
         raw["no_channel"] = _targets_to_raw(config.no_channel)
+    if config.names:
+        raw["names"] = [
+            {"node_id": node_id, "endpoint": endpoint, "caption": caption}
+            for node_id, endpoint, caption in config.names
+        ]
     return raw
 
 

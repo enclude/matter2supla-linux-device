@@ -314,6 +314,7 @@ function diagLink(nodeId) {
 const sliderHold = {};  // nazwa urządzenia -> czas ostatniego ruchu suwakiem (nie nadpisujemy w trakcie)
 const openRows = new Set();  // rozwinięte wiersze - lista jest przebudowywana co 2 s
 const TYPE_LABEL = { onoff: "gniazdko / przekaźnik", light_cct: "światło z regulacją bieli", meter: "licznik energii", light_group: "grupa świateł" };
+const RENAME_PROMPT = "Nazwa w panelu (lokalna, nie jest wysyłana do SUPLA Cloud). Kanał dostaje ją w SUPLA tylko przy pierwszej rejestracji, np. po zmianie konta lub serwera - istniejącej nazwy w Cloud nie zmienia:";
 const ADD_CHANNEL_CONFIRM = "Dodać kanał SUPLA? Kanału nie da się później usunąć bez usunięcia całego urządzenia z SUPLA Cloud.";
 
 function timeAgo(seconds) {
@@ -403,16 +404,17 @@ function detailsBox(dev, options) {
   box.append(list);
 
   const tools = el("div", "actions");
-  if (dev.supla_channel >= 0 || dev.type === "light_group") {
+  if (!options.placeholder) {
     const rename = el("button", null, "Zmień nazwę");
     rename.disabled = dev.caption_linked;
     if (dev.caption_linked) rename.title = "Nazwa licznika wynika z nazwy gniazdka";
     rename.onclick = () => {
-      const caption = prompt("Nazwa kanału w panelu. SUPLA przyjmuje ją tylko przy pierwszej rejestracji kanału - później nazwę w SUPLA zmienia się w Cloud lub aplikacji:", dev.caption);
+      const caption = prompt(RENAME_PROMPT, dev.caption);
       if (caption !== null) act(() => post(`/api/devices/${encodeURIComponent(dev.name)}/caption`, { caption }));
     };
     tools.append(rename);
-  } else if (options.canAdd) {
+  }
+  if (dev.supla_channel < 0 && dev.type !== "light_group" && options.canAdd) {
     const add = el("button", null, "Dodaj osobny kanał SUPLA");
     add.onclick = () => { if (confirm(ADD_CHANNEL_CONFIRM)) act(() => post("/api/devices", { node_id: dev.node_id, endpoint: dev.endpoint })); };
     tools.append(add);
@@ -467,12 +469,12 @@ function renderDevices(state) {
     if (dev.type === "light_group") {
       children = dev.members.map((m) => m.device
         ? { dev: m.device, key: `${dev.name}/${m.device.name}`, canAdd: true }
-        : { dev: { name: `${dev.name}-${m.node_id}-${m.endpoint}`, caption: "Nieznane urządzenie", type: "light_cct", node_id: m.node_id, endpoint: m.endpoint, supla_channel: -1, state: "unavailable", last_seen: null }, key: `${dev.name}/${m.node_id}/${m.endpoint}` });
+        : { dev: { name: `${dev.name}-${m.node_id}-${m.endpoint}`, caption: "Nieznane urządzenie", type: "light_cct", node_id: m.node_id, endpoint: m.endpoint, supla_channel: -1, state: "unavailable", last_seen: null }, key: `${dev.name}/${m.node_id}/${m.endpoint}`, placeholder: true });
     } else {
       children = meters.filter((c) => c.node_id === dev.node_id).map((c) => ({ dev: c, key: c.name }));
     }
     if (needle && !searchText(dev).includes(needle) && !children.some((c) => searchText(c.dev).includes(needle))) continue;
-    items.push(deviceItem(dev), ...children.map((c) => deviceItem(c.dev, { child: true, key: c.key, canAdd: c.canAdd })));
+    items.push(deviceItem(dev), ...children.map((c) => deviceItem(c.dev, { child: true, key: c.key, canAdd: c.canAdd, placeholder: c.placeholder })));
   }
   box.replaceChildren(...(items.length ? items : [el("p", "empty", "Żaden kanał nie pasuje do filtra.")]));
 }
@@ -488,15 +490,20 @@ function renderCandidates(state) {
     const line = el("div", "line");
     line.append(el("div", "chan", "–"));
     const info = el("div");
-    info.append(el("div", "title", c.product || "Urządzenie Matter"));
-    info.append(el("div", "meta", [`${c.vendor || "?"}`, `węzeł ${c.node_id}` + (c.endpoint != null ? `, endpoint ${c.endpoint}` : ""), c.reason].filter(Boolean).join(" · ")));
+    info.append(el("div", "title", c.caption || c.product || "Urządzenie Matter"));
+    info.append(el("div", "meta", [c.caption ? c.product : null, `${c.vendor || "?"}`, `węzeł ${c.node_id}` + (c.endpoint != null ? `, endpoint ${c.endpoint}` : ""), c.reason].filter(Boolean).join(" · ")));
     const actions = el("div", "actions");
     if (c.supported || c.manual) {
       const add = el("button", c.supported ? "primary" : null, "Dodaj kanał");
       add.onclick = () => { if (confirm(ADD_CHANNEL_CONFIRM)) act(() => post("/api/devices", { node_id: c.node_id, endpoint: c.endpoint })); };
       actions.append(add);
     }
-    actions.append(diagLink(c.node_id));
+    const rename = el("button", null, "Zmień nazwę");
+    rename.onclick = () => {
+      const caption = prompt(RENAME_PROMPT, c.caption || "");
+      if (caption !== null) act(() => post("/api/names", { node_id: c.node_id, endpoint: c.endpoint || 0, caption }));
+    };
+    actions.append(rename, diagLink(c.node_id));
     line.append(info, actions);
     item.append(line);
     return item;

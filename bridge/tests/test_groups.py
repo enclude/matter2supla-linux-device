@@ -278,3 +278,32 @@ async def test_identify_single_light_and_whole_group():
     assert sorted(n for n, command, _ in core.sender.sent if command == "Identify") == [3, 4]
     meter = Device(name="licznik", node_id=3, endpoint=2, type="meter", supla_channel=1, measurements=("power",))
     assert not core.can_identify(meter)
+
+
+async def test_local_names_for_lights_without_channel(paths):
+    manager = await make_manager(paths)
+    group = await manager.create_group("Salon", [])
+    manager.matter_client.result = node(3)
+    manager.start_commission("MT:ABC", False, f"group:{group.name}")
+    await manager._commission_task
+    member = manager.snapshot()["devices"][0]["members"][0]["device"]
+    supla_file = paths[1].read_text(encoding="utf-8")
+
+    # światło tylko z grupy: nazwa lokalna, zapisana w pliku, bez ruszania konfiguracji SUPLA
+    await manager.set_caption(member["name"], " Lewa nad stołem ")
+    assert manager.snapshot()["devices"][0]["members"][0]["device"]["caption"] == "Lewa nad stołem"
+    assert load_config(paths[0]).names == ((3, 1, "Lewa nad stołem"),)
+    assert manager.snapshot()["lights"][0]["label"] == "Lewa nad stołem"
+    assert paths[1].read_text(encoding="utf-8") == supla_file
+
+    # nazwa kanału też jest lokalna: plik SUPLA zostaje, a nazwa trafi do niego przy najbliższym generowaniu
+    await manager.set_caption(group.name, "Żyrandol")
+    assert paths[1].read_text(encoding="utf-8") == supla_file
+    manager.regenerate_supla()
+    assert "initial_caption: Żyrandol" in paths[1].read_text(encoding="utf-8")
+
+    # po dodaniu osobnego kanału nazwa lokalna staje się nazwą kanału
+    dev = await manager.add_device(3, 1)
+    assert dev.caption == "Lewa nad stołem" and manager.config.names == ()
+    with pytest.raises(ManagerError):
+        await manager.set_name(99, 1, "x")

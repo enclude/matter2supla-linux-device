@@ -151,8 +151,9 @@ async def test_light_without_channel_is_controllable_from_panel(tmp_path):
     assert ("m2s/3/1/light_cct/state", "1 100 28") in manager.mqtt.published
     await manager.set_light(control["name"], 40, None)
     assert client.calls[-1][1][2:4] == (8, "MoveToLevelWithOnOff")
-    with pytest.raises(ManagerError):
-        await manager.set_caption(control["name"], "Lampa")
+    await manager.set_caption(control["name"], "Lampa")  # nazwa lokalna, bez kanału SUPLA
+    assert manager.snapshot()["candidates"][0]["control"]["caption"] == "Lampa"
+    assert manager.config.devices == () and manager.config.names == ((3, 1, "Lampa"),)
     await manager.auto_add()  # kolejne zdarzenia nie dublują subskrypcji
     assert manager.mqtt.subscribed == ["m2s/3/1/light_cct/set"]
 

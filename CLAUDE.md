@@ -57,6 +57,7 @@ Kroki 1–3 planu (pkt 12) są zrobione: szkielet repo, weryfikacja API, `bridge
 - **Zakładka „Logi” (prośba użytkownika, 2026-11-26):** `logs.py` - dziennik łącznika z pamięci i koniec pliku dziennika kontrolera (`LOG_FILE=/data/logs/matter-server.log`; łącznik ma `data/matter` podłączone tylko do odczytu jako `/matter-data`). `backup.sh` pomija `data/matter/logs`.
 - **Zakładka Kanały (prośba użytkownika, 2026-11-26, wzorowana na zigbee2mqtt):** zwarte wiersze z rozwijanymi szczegółami, światła grupy pod grupą, filtr, „ostatnio widziane”, przycisk „Znajdź” (klaster Identify, także dla całej grupy - potwierdzone na żarówkach GU10). Zasięg Thread i usuwanie urządzeń odłożone.
 - **Sparowane 2026-11-26:** cztery KAJPLATS GU10 WS 575lm (węzły 8-11) do grupy na kanale 3 oraz drugie gniazdko GRILLPLATS (węzeł 13, kanały 4 i 5). Po fabrycznym resecie urządzenia rozgłaszają się pod nowym adresem Bluetooth - kontroler najpierw próbuje starych (błąd „interface not found in proxy object”), potem znajduje nowe.
+- **Nazwy są lokalne (decyzja użytkownika, 2026-11-26):** panel nie pobiera nazw z SUPLA Cloud i ich tam nie wysyła. Zmiana nazwy zapisuje tylko `devices.yaml` (bez przebudowy pliku SUPLA i restartu supla-device); do SUPLA trafia jako `initial_caption` przy pierwszej rejestracji kanału, np. po zmianie konta lub serwera. Endpointy bez kanału mają nazwy w liście `names`.
 - Otwarte pytania z pkt 11: 1–3 rozstrzygnięte (jak wyżej); nr 4 (inny border router Thread w domu) nadal otwarty.
 
 ## 1. Cel
