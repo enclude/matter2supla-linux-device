@@ -5,6 +5,8 @@ Przy każdej informacji zaznaczono, czy została **sprawdzona** (w źródłach/d
 
 ## 0. Aktualizacja po drugiej sesji (2026-11-25) — ma pierwszeństwo przed resztą dokumentu
 
+**Repozytorium jest publiczne.** Adresy, nazwy hostów, nazwy kluczy SSH i serwer konta SUPLA są tu zastąpione symbolami (`<adres-rpi>`, `<klucz-ssh>`, `svrXX` itd.); prawdziwe wartości są w lokalnej notatce agenta (pamięć projektu), nie w repo. Nie wpisuj ich do żadnego pliku w repozytorium.
+
 Kroki 1–3 planu (pkt 12) są zrobione: szkielet repo, weryfikacja API, `bridge` z OnOff i testami. Szczegóły i lista „sprawdzone / do sprawdzenia na sprzęcie” — w `README.md`.
 
 - **Host (decyzja użytkownika):** VM Ubuntu na Proxmox VE, ESP32-C5 przez USB passthrough. Nazwa interfejsu LAN w VM nadal do potwierdzenia (domyślnie przyjęto `ens18`, zmienna `INFRA_IF` w `.env`).
