@@ -48,6 +48,15 @@ STATE = {
         {"name": "grillplats_plug_2_meter", "caption": "Gniazdko — biurko — licznik", "node_id": "2",
          "endpoint": 2, "type": "meter", "supla_channel": 2, "state": "measuring", "caption_linked": True,
          "meter": {"voltage": 236.8, "current": 0.104, "power": 14.6, "energy": 1.273}},
+        {"name": "grupa_3", "caption": "Żyrandol - jadalnia", "node_id": "0", "endpoint": 0,
+         "type": "light_group", "supla_channel": 3, "state": "on", "caption_linked": False,
+         "brightness": 80, "temperature": 45, "members_available": 2,
+         "members": [{"node_id": "5", "endpoint": 1}, {"node_id": "6", "endpoint": 1}]},
+    ],
+    "lights": [
+        {"node_id": "3", "endpoint": 1, "label": "Lampa — salon", "available": True, "supla_channel": 1},
+        {"node_id": "5", "endpoint": 1, "label": "KAJPLATS E27 WS globe 1521lm", "available": True, "supla_channel": None},
+        {"node_id": "6", "endpoint": 1, "label": "KAJPLATS E27 WS globe 1521lm", "available": True, "supla_channel": None},
     ],
     "candidates": [
         {"node_id": "4", "available": True, "vendor": "IKEA of Sweden", "product": "TIMMERFLOTTE temp/hmd sensor",
@@ -109,13 +118,14 @@ async def main() -> None:
         await login(page)
         await page.screenshot(path=OUT / "panel.png", full_page=True)
         sections = page.locator("section:visible")
-        names = ["panel-kanaly", "panel-bez-kanalu", "panel-konto-supla", "panel-parowanie", "panel-kopie"]
+        await page.locator("#groups summary").first.click()
+        names = ["panel-kanaly", "panel-grupy", "panel-bez-kanalu", "panel-konto-supla", "panel-parowanie", "panel-kopie"]
         for index, name in enumerate(names):
             await sections.nth(index).screenshot(path=OUT / f"{name}.png")
 
         manager.state["commission"] = {"running": True, "message": "Parowanie trwa (do kilku minut)…", "error": None}
         await page.wait_for_timeout(2500)
-        await sections.nth(3).screenshot(path=OUT / "panel-parowanie-trwa.png")
+        await sections.nth(4).screenshot(path=OUT / "panel-parowanie-trwa.png")
         manager.state["commission"] = STATE["commission"]
 
         phone = await open_page(390, 800, mobile=True)

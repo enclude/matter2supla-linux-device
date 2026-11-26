@@ -54,7 +54,7 @@
   button:disabled { opacity: 0.45; cursor: default; }
   button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; }
-  input[type=text], input[type=password] { font: inherit; width: 100%; padding: 8px 10px; border-radius: 7px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
+  input[type=text], input[type=password], select { font: inherit; width: 100%; padding: 8px 10px; border-radius: 7px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
   .field { margin-bottom: 12px; }
   .check { display: flex; gap: 8px; align-items: flex-start; font-weight: 400; font-size: 13px; }
   .check input { margin-top: 4px; }
@@ -69,6 +69,7 @@
   details { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 12px; }
   summary { cursor: pointer; font-weight: 600; font-size: 13px; }
   details > div { margin-top: 12px; }
+  #group-form { margin-top: 16px; }
   @media (max-width: 560px) { .row { grid-template-columns: 44px 1fr; } .actions { grid-column: 1 / -1; justify-content: flex-start; } }
 </style>
 </head>
@@ -86,6 +87,20 @@
   <section>
     <h2>Kanały SUPLA</h2>
     <div id="devices"><p class="empty">Wczytywanie…</p></div>
+  </section>
+
+  <section>
+    <h2>Grupy świateł</h2>
+    <div id="groups"></div>
+    <form id="group-form">
+      <div class="field">
+        <label for="group-caption">Nowa grupa</label>
+        <input type="text" id="group-caption" maxlength="100" autocomplete="off" placeholder="np. Żyrandol w salonie" required>
+        <p class="hint">Grupa to jeden kanał SUPLA (ściemniacz z regulacją bieli) sterujący kilkoma światłami naraz. Kanału nie da się później usunąć, ale skład grupy można zmieniać dowolnie, np. po wymianie żarówki. Pojedyncze światła nadal można dodawać jako osobne kanały.</p>
+      </div>
+      <button>Utwórz grupę</button>
+    </form>
+    <div id="group-status"></div>
   </section>
 
   <section id="candidates-section" hidden>
@@ -132,6 +147,11 @@
       <div class="field">
         <label class="check"><input type="checkbox" id="network-only">
           <span>Urządzenie jest już w sieci (udostępnione z innej aplikacji) — paruj bez Bluetootha</span></label>
+      </div>
+      <div class="field">
+        <label for="commission-target">Po sparowaniu</label>
+        <select id="commission-target"><option value="channel">Osobny kanał SUPLA</option></select>
+        <p class="hint">Kanał SUPLA jest trwały. Światło, które ma działać tylko w grupie, wskaż tutaj przed parowaniem - inaczej dostanie też własny kanał.</p>
       </div>
       <button class="primary" id="commission-button">Sparuj</button>
       <p class="hint" id="commission-hint"></p>
@@ -232,7 +252,7 @@ function controls(dev) {
     actions.append(button);
   }
   nodes.push(actions);
-  if (dev.type === "light_cct") {
+  if (dev.type === "light_cct" || dev.type === "light_group") {
     const box = el("div", "sliders");
     const held = Date.now() - (sliderHold[dev.name] || 0) < 4000;
     for (const [key, label, min, unit] of [["brightness", "Jasność", 1, "%"], ["temperature", "Biel (ciepła–zimna)", 0, ""]]) {
@@ -273,7 +293,9 @@ function renderDevices(state) {
     chan.append(el("small", null, "kanał"));
     const info = el("div");
     info.append(el("div", "title", dev.caption || dev.name));
-    info.append(el("div", "meta", `${dev.name} · węzeł ${dev.node_id}, endpoint ${dev.endpoint}`));
+    info.append(el("div", "meta", dev.type === "light_group"
+      ? `${dev.name} · grupa świateł: ${dev.members.length}, dostępnych ${dev.members_available}`
+      : `${dev.name} · węzeł ${dev.node_id}, endpoint ${dev.endpoint}`));
     info.append(el("div", "state " + dev.state, STATE_LABEL[dev.state]));
     if (dev.meter) info.append(el("div", "meta", meterText(dev.meter)));
     const [actions, sliders] = controls(dev);
@@ -286,7 +308,8 @@ function renderDevices(state) {
       // nazwa licznika idzie za nazwą gniazdka; diagnostyka jest wspólna dla całego urządzenia
       actions.replaceChildren();
     } else {
-      actions.append(rename, diagLink(dev.node_id));
+      actions.append(rename);
+      if (dev.type !== "light_group") actions.append(diagLink(dev.node_id));
     }
     row.append(chan, info, actions);
     if (sliders) row.append(sliders);
@@ -306,8 +329,8 @@ function renderCandidates(state) {
     const [controlActions, sliders] = c.control ? controls(c.control) : [null, null];
     const actions = controlActions || el("div", "actions");
     if (c.control) info.append(el("div", "state " + c.control.state, STATE_LABEL[c.control.state]));
-    if (c.supported) {
-      const add = el("button", "primary", "Dodaj kanał");
+    if (c.supported || c.manual) {
+      const add = el("button", c.supported ? "primary" : null, "Dodaj kanał");
       add.onclick = () => {
         if (confirm("Dodać kanał SUPLA? Kanału nie da się później usunąć bez usunięcia całego urządzenia z SUPLA Cloud."))
           act(() => post("/api/devices", { node_id: c.node_id, endpoint: c.endpoint }));
@@ -318,6 +341,54 @@ function renderCandidates(state) {
     row.append(info, actions);
     if (sliders) row.append(sliders);
     return row;
+  }));
+}
+
+let shownGroups = null;
+let groupsDirty = false;
+
+function renderGroups(state) {
+  // Skład grup i lista wyboru przy parowaniu; bez przebudowy co 2 s, żeby nie gubić zaznaczeń.
+  const groups = state.devices.filter((d) => d.type === "light_group");
+  const lights = state.lights || [];
+  const key = JSON.stringify([groups.map((g) => [g.name, g.caption, g.members]), lights]);
+  if (key === shownGroups || groupsDirty) return;
+  shownGroups = key;
+
+  const select = $("commission-target");
+  const chosen = select.value;
+  select.replaceChildren();
+  const options = [["channel", "Osobny kanał SUPLA"], ...groups.map((g) => ["group:" + g.name, "Do grupy: " + (g.caption || g.name)]), ["none", "Bez kanału SUPLA"]];
+  for (const [value, label] of options) { const o = el("option", null, label); o.value = value; select.append(o); }
+  select.value = options.some(([value]) => value === chosen) ? chosen : "channel";
+
+  const box = $("groups");
+  if (!groups.length) { box.replaceChildren(el("p", "empty", "Brak grup.")); return; }
+  box.replaceChildren(...groups.map((group) => {
+    const details = el("details");
+    details.append(el("summary", null, `${group.caption || group.name} · kanał ${group.supla_channel} · świateł: ${group.members.length}`));
+    const inner = el("div");
+    const member = (l) => group.members.some((m) => m.node_id === l.node_id && m.endpoint === l.endpoint);
+    const boxes = lights.map((l) => {
+      const label = el("label", "check");
+      const input = el("input"); input.type = "checkbox"; input.checked = member(l);
+      input.dataset.node = l.node_id; input.dataset.endpoint = l.endpoint;
+      input.onchange = () => { groupsDirty = true; };
+      const where = l.supla_channel != null ? `kanał ${l.supla_channel}` : "bez osobnego kanału";
+      label.append(input, el("span", null, `${l.label} · węzeł ${l.node_id} · ${where}` + (l.available ? "" : " · niedostępne")));
+      return label;
+    });
+    if (!boxes.length) inner.append(el("p", "empty", "Nie ma jeszcze sparowanych świateł z regulacją bieli."));
+    const save = el("button", null, "Zapisz skład");
+    const status = el("div");
+    save.onclick = () => act(async () => {
+      const members = [...inner.querySelectorAll("input:checked")].map((i) => ({ node_id: Number(i.dataset.node), endpoint: Number(i.dataset.endpoint) }));
+      await post(`/api/groups/${encodeURIComponent(group.name)}/members`, { members });
+      groupsDirty = false;
+    }, status);
+    inner.append(...boxes, save, status, el("p", "hint", "Światło wyjęte z grupy nie dostaje kanału samo - trafia na listę urządzeń bez kanału."));
+    details.append(inner);
+    return details;
   }));
 }
 
@@ -354,6 +425,7 @@ function render(state) {
   $("logout").hidden = !state.auth;
   renderDevices(state);
   renderCandidates(state);
+  renderGroups(state);
   renderBackups(state);
   renderVersion(state);
   if (!suplaDirty && document.activeElement.id !== "supla-server" && document.activeElement.id !== "supla-mail") {
@@ -442,9 +514,15 @@ $("network-only").addEventListener("change", (e) => { e.target.dataset.touched =
 $("commission-form").addEventListener("submit", (e) => {
   e.preventDefault();
   act(async () => {
-    await post("/api/commission", { code: $("code").value, network_only: $("network-only").checked });
+    await post("/api/commission", { code: $("code").value, network_only: $("network-only").checked, target: $("commission-target").value });
     $("code").value = "";
   });
+});
+$("group-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const caption = $("group-caption").value;
+  if (!confirm(`Utworzyć grupę „${caption}”? Powstanie nowy kanał SUPLA, którego nie da się później usunąć bez usunięcia całego urządzenia z SUPLA Cloud.`)) return;
+  act(async () => { await post("/api/groups", { caption, members: [] }); $("group-caption").value = ""; groupsDirty = false; }, $("group-status"));
 });
 $("dataset-form").addEventListener("submit", (e) => {
   e.preventDefault();

@@ -52,6 +52,7 @@ Kroki 1–3 planu (pkt 12) są zrobione: szkielet repo, weryfikacja API, `bridge
 - **Sesje panelu:** zapisane w `config/web-sessions.json` (skróty), 180 dni z przedłużaniem; restart łącznika nie wylogowuje (sprawdzone na RPi).
 - **Webflasher (prośba użytkownika):** katalog `webflasher/` (ESP Web Tools + `ot_rcp` dla C5/C6/H2, warianty UART i USB), publicznie pod `https://matter2supla.zjawa.tech`. Strona działa; wgrywanie na płytkę przez stronę niesprawdzone. Obraz budowany na hoście strony, nie w pipeline.
 - **Dokumentacja bez długich łączników** (prośba użytkownika): w `README.md`, `docs/` i na stronie webflashera używać zwykłego „-”.
+- **Grupy świateł (prośba użytkownika, 2026-11-26):** typ `light_group` w `devices.yaml` (`members`, bez własnego węzła), dla SUPLA zwykły `MatterLight`, tematy `<prefix>/group/<nazwa>/...`. Pojedyncze światła jako osobne kanały działają jak dotąd. Formularz parowania ma wybór „po sparowaniu” (osobny kanał / do grupy / bez kanału); lista `no_channel` trzyma endpointy pomijane przez `auto_add`. Natywne grupy Matter celowo nieużywane. Sprawdzone testami i na atrapie panelu; na prawdziwych żarówkach jeszcze nie.
 - Otwarte pytania z pkt 11: 1–3 rozstrzygnięte (jak wyżej); nr 4 (inny border router Thread w domu) nadal otwarty.
 
 ## 1. Cel

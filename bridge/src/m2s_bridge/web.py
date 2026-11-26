@@ -237,7 +237,25 @@ def create_app(
 
     async def commission(request: web.Request) -> web.Response:
         data = await body(request)
-        manager.start_commission(str(data.get("code", "")), bool(data.get("network_only")))
+        manager.start_commission(
+            str(data.get("code", "")), bool(data.get("network_only")), str(data.get("target") or "channel")
+        )
+        return web.json_response({"ok": True})
+
+    def members(data: dict[str, Any]) -> list[tuple[int, int]]:
+        value = data.get("members", [])
+        if not isinstance(value, list):
+            raise ValueError("members musi być listą")
+        return [(int(item["node_id"]), int(item["endpoint"])) for item in value]
+
+    async def group_create(request: web.Request) -> web.Response:
+        data = await body(request)
+        group = await manager.create_group(str(data.get("caption", "")), members(data))
+        return web.json_response({"ok": True, "name": group.name, "supla_channel": group.supla_channel})
+
+    async def group_members(request: web.Request) -> web.Response:
+        data = await body(request)
+        await manager.set_group_members(request.match_info["name"], members(data))
         return web.json_response({"ok": True})
 
     async def thread_dataset(request: web.Request) -> web.Response:
@@ -320,6 +338,8 @@ def create_app(
             web.post("/api/supla", supla_account),
             web.post("/api/thread-dataset", thread_dataset),
             web.post("/api/devices", add_device),
+            web.post("/api/groups", group_create),
+            web.post("/api/groups/{name}/members", group_members),
             web.post("/api/devices/{name}/command", device_command),
             web.post("/api/devices/{name}/caption", device_caption),
             web.post("/api/devices/{name}/light", device_light),

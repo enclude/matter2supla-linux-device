@@ -32,6 +32,7 @@ Wykonane na przykładowych danych skryptem [`img/make_screenshots.py`](img/make_
 | Cały panel (telefon) | [img/panel-telefon.png](img/panel-telefon.png) |
 | Logowanie | [img/panel-logowanie.png](img/panel-logowanie.png) |
 | Kanały SUPLA | [img/panel-kanaly.png](img/panel-kanaly.png) |
+| Grupy świateł | [img/panel-grupy.png](img/panel-grupy.png) |
 | Urządzenia Matter bez kanału | [img/panel-bez-kanalu.png](img/panel-bez-kanalu.png) |
 | Konto SUPLA | [img/panel-konto-supla.png](img/panel-konto-supla.png) |
 | Parowanie urządzenia | [img/panel-parowanie.png](img/panel-parowanie.png) |

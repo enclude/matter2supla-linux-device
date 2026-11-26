@@ -34,4 +34,15 @@ web:
   port: 8099
 
 # Listę wypełnia łącznik; ręcznie wolno tylko dopisywać na końcu.
+# Grupa świateł (jeden kanał SUPLA dla kilku świateł) tworzona w panelu wygląda tak:
+#   - name: grupa_3
+#     caption: Żyrandol
+#     type: light_group
+#     supla_channel: 3
+#     members:
+#       - {node_id: 5, endpoint: 1}
 devices: []
+
+# Endpointy celowo zostawione bez kanału SUPLA (wybór przy parowaniu, światło wyjęte z grupy):
+# no_channel:
+#   - {node_id: 6, endpoint: 1}

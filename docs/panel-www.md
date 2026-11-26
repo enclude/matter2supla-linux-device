@@ -89,6 +89,14 @@ Formularz przyjmuje kod `MT:…` albo kod numeryczny. Kod można wpisać, albo o
 
 Pole wyboru „Urządzenie jest już w sieci…” przełącza na parowanie bez Bluetootha. Jeśli kontroler nie ma Bluetootha, panel zaznacza je sam i wyświetla o tym informację.
 
+Lista „Po sparowaniu” decyduje, co stanie się z nowym urządzeniem:
+
+- **Osobny kanał SUPLA** (domyślnie) - urządzenie dostaje własny kanał, jak dotąd;
+- **Do grupy: …** - światło trafia do wybranej [grupy świateł](#grupy-świateł) i nie dostaje własnego kanału;
+- **Bez kanału SUPLA** - urządzenie jest tylko sparowane; kanał można dodać później przyciskiem „Dodaj kanał”.
+
+Wybór ma znaczenie, bo kanał SUPLA jest trwały: światło sparowane z domyślnym ustawieniem dostaje własny kanał od razu. Do grupy można je dodać także później, ale kanał już zostanie.
+
 W rozwijanej części „Dataset sieci Thread” widać, czy kontroler ma zapisany dataset, i można go wkleić (wynik `docker exec otbr ot-ctl dataset active -x`).
 
 Przebieg parowania, tryb parowania urządzeń i typowe niepowodzenia: [parowanie.md](parowanie.md).
@@ -107,6 +115,24 @@ Nowo sparowane urządzenie obsługiwanego typu pojawia się tu **samo** jako kol
 
 > **Kanału nie da się usunąć ani zmienić jego typu** bez usunięcia całego urządzenia z SUPLA Cloud razem z historią. Wyjaśnienie: [jak-to-dziala.md](jak-to-dziala.md#trwałość-kanałów-supla).
 
+## Grupy świateł
+
+![Sekcja „Grupy świateł”](img/panel-grupy.png)
+
+Grupa to **jeden kanał SUPLA** (ściemniacz z regulacją bieli) sterujący kilkoma światłami naraz. Pojedyncze światła nadal działają jako osobne kanały - oba sposoby można mieszać, a jedno światło może mieć własny kanał i jednocześnie należeć do grupy.
+
+- **Utwórz grupę** - tworzy nowy, trwały kanał. Grupa może być na początku pusta (kanał jest wtedy niedostępny).
+- **Skład** - po rozwinięciu grupy zaznacza się światła i zapisuje przyciskiem „Zapisz skład”. Skład można zmieniać dowolnie; numer kanału się nie zmienia.
+- Światło wyjęte z grupy nie dostaje kanału samo - trafia na listę urządzeń bez kanału.
+
+Zachowanie grupy:
+
+- polecenie z SUPLA albo z panelu trafia do wszystkich dostępnych świateł grupy;
+- grupa jest „włączona”, gdy świeci którekolwiek światło; jasność i biel pokazywane są z pierwszego świecącego;
+- grupa jest „niedostępna” dopiero wtedy, gdy nie odpowiada żadne światło.
+
+Grupa z jednym światłem też ma sens: po wymianie żarówki podmienia się skład grupy, a kanał SUPLA z nazwą, harmonogramami i historią zostaje. Żarówka z własnym kanałem po wymianie zostawia martwy kanał, którego nie da się usunąć.
+
 ## Urządzenia Matter bez kanału
 
 ![Sekcja „Urządzenia Matter bez kanału”](img/panel-bez-kanalu.png)
@@ -116,7 +142,9 @@ Sekcja pojawia się, gdy sparowane są urządzenia, które nie mają kanału SUP
 - typy jeszcze nieobsługiwane (np. czujniki) - można je sparować i pobrać diagnostykę, na podstawie której dopisuje się obsługę;
 - światła z regulacją bieli przy `lights_as_channels: false` - bez kanału SUPLA, ale z przyciskami włącz/wyłącz oraz suwakami jasności i bieli. Domyślnie takie światło dostaje kanał „ściemniacz CCT” i te same suwaki są w sekcji kanałów.
 
-Kanał powstaje dopiero po dodaniu obsługi danego typu, właśnie dlatego, że później nie da się go zmienić.
+- urządzenia sparowane z wyborem „Bez kanału SUPLA” oraz światła należące tylko do grupy - mają przycisk „Dodaj kanał”, a światła także suwaki.
+
+Kanał dla typu nieobsługiwanego powstaje dopiero po dodaniu obsługi danego typu, właśnie dlatego, że później nie da się go zmienić.
 
 ## Zrzut diagnostyczny
 

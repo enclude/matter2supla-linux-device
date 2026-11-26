@@ -9,6 +9,10 @@ Gniazdko (`onoff`):
 Światło z regulacją bieli (`light_cct`), format dla rozszerzenia MatterLight w supla-device:
   stan    `S B T`  — S: 1/0/-1, B: jasność 1–100, T: biel 0 (ciepła) – 100 (zimna)
   komenda `B T`    — B: 0 = zgaś, 1–100 = jasność; T: 0–100 albo -1 = bez zmiany
+Grupa świateł (`light_group`): tematy `<prefix>/group/<nazwa>/state|set`, format jak dla światła.
+  Stan zbiorczy: włączona, gdy świeci którekolwiek światło; jasność i biel z pierwszego
+  świecącego (a gdy wszystkie zgaszone - z pierwszego dostępnego); niedostępna dopiero wtedy,
+  gdy nie odpowiada żadne. Komenda trafia do wszystkich dostępnych świateł grupy naraz.
 Licznik energii (`meter`), dla kanału ElectricityMeterParsed w supla-device:
   stan    `{"voltage": V, "current": A, "power": W, "energy": kWh, "frequency": Hz}` — tylko
           pomiary zapisane dla urządzenia; pusty komunikat = niedostępne (kasuje też stan
@@ -25,7 +29,7 @@ import logging
 from typing import Any, Awaitable, Callable, Protocol
 
 from . import light, meter
-from .config import Config, Device
+from .config import GROUP_TYPE, NO_CHANNEL, Config, Device
 from .matter_client import MatterConnectionError, MatterError
 from .topics import set_topic, state_topic
 
@@ -34,6 +38,7 @@ log = logging.getLogger(__name__)
 ONOFF_CLUSTER = 0x0006
 ONOFF_ATTRIBUTE = 0x0000
 STATE_INVALID = -1
+LIGHT_TYPES = ("light_cct", GROUP_TYPE)
 
 _COMMANDS = {
     "ON": "On",
@@ -80,7 +85,26 @@ class BridgeCore:
         self._by_set_topic = {set_topic(self._prefix, d): d for d in self._devices if d.type != "meter"}
         self._by_node: dict[int, list[Device]] = {}
         for dev in self._devices:
-            self._by_node.setdefault(dev.node_id, []).append(dev)
+            if dev.type == GROUP_TYPE:
+                # Stan grupy zależy od każdego z jej świateł.
+                for node_id in dict.fromkeys(node_id for node_id, _ in dev.members):
+                    self._by_node.setdefault(node_id, []).append(dev)
+            else:
+                self._by_node.setdefault(dev.node_id, []).append(dev)
+
+    @staticmethod
+    def members_of(group: Device) -> list[Device]:
+        """Światła grupy jako urządzenia `light_cct` (bez kanału, tylko do odczytu i komend)."""
+        return [
+            Device(
+                name=f"{group.name}:{node_id}/{endpoint}",
+                node_id=node_id,
+                endpoint=endpoint,
+                type="light_cct",
+                supla_channel=NO_CHANNEL,
+            )
+            for node_id, endpoint in group.members
+        ]
 
     @property
     def devices(self) -> tuple[Device, ...]:
@@ -109,6 +133,9 @@ class BridgeCore:
         return node["attributes"]
 
     def state_of(self, dev: Device) -> int:
+        if dev.type == GROUP_TYPE:
+            current = self.light_state(dev)
+            return STATE_INVALID if current is None else current["state"]
         attributes = self._attributes(dev)
         if attributes is None:
             return STATE_INVALID
@@ -119,6 +146,17 @@ class BridgeCore:
 
     def light_state(self, dev: Device) -> dict[str, int] | None:
         """Stan światła w skali SUPLA albo None, gdy niedostępne lub niepełne dane."""
+        if dev.type == GROUP_TYPE:
+            states = [s for member in self.members_of(dev) if (s := self.light_state(member)) is not None]
+            if not states:
+                return None
+            lit = [s for s in states if s["state"] == 1]
+            reference = (lit or states)[0]
+            return {
+                "state": 1 if lit else 0,
+                "brightness": reference["brightness"],
+                "temperature": reference["temperature"],
+            }
         attributes = self._attributes(dev)
         state = self.state_of(dev)
         if attributes is None or state == STATE_INVALID:
@@ -142,7 +180,7 @@ class BridgeCore:
         if dev.type == "meter":
             current = self.meter_state(dev)
             return "" if current is None else json.dumps(current)
-        if dev.type == "light_cct":
+        if dev.type in LIGHT_TYPES:
             current = self.light_state(dev)
             if current is None:
                 return "-1 0 0"
@@ -188,6 +226,11 @@ class BridgeCore:
         for node in nodes or []:
             self._store_node(node)
         for dev in self._devices:
+            if dev.type == GROUP_TYPE:
+                for node_id, _ in dev.members:
+                    if node_id not in self._nodes:
+                        log.warning("%s: węzeł %d z grupy nie istnieje w matter-server", dev.name, node_id)
+                continue
             node = self._nodes.get(dev.node_id)
             if node is None:
                 log.warning("%s: węzeł %d nie istnieje w matter-server", dev.name, dev.node_id)
@@ -254,10 +297,29 @@ class BridgeCore:
 
     async def send_command(self, dev: Device, command: str) -> bool:
         """Wysyła On/Off/Toggle do urządzenia; False, gdy się nie udało."""
+        if dev.type == GROUP_TYPE:
+            if command == "Toggle":
+                command = "Off" if self.state_of(dev) == 1 else "On"
+            return await self._fan_out(dev, lambda member: self._invoke(member, ONOFF_CLUSTER, command))
         return await self._invoke(dev, ONOFF_CLUSTER, command)
+
+    async def _fan_out(self, group: Device, action: Callable[[Device], Awaitable[bool]]) -> bool:
+        """Wykonuje komendę na wszystkich dostępnych światłach grupy; True, gdy udało się choć jedno."""
+        members = [m for m in self.members_of(group) if self.state_of(m) != STATE_INVALID]
+        if not members:
+            log.warning("%s: komenda odrzucona — żadne światło grupy nie jest dostępne", group.name)
+            return False
+        results = await asyncio.gather(*(action(member) for member in members))
+        if not all(results):
+            # Przypominamy faktyczny stan grupy, żeby SUPLA nie pokazywała niewykonanej zmiany.
+            await self._publish_devices([group], force=True)
+        return any(results)
 
     async def set_light(self, dev: Device, brightness: int | None, temperature: int | None) -> bool:
         """Ustawia jasność (0 = zgaś, 1–100) i/lub biel (0–100). Pomija to, co już jest ustawione."""
+        if dev.type == GROUP_TYPE:
+            # Każde światło porównuje polecenie z własnym stanem, więc grupa się wyrównuje.
+            return await self._fan_out(dev, lambda member: self.set_light(member, brightness, temperature))
         current = self.light_state(dev)
         if current is None:
             log.warning("%s: komenda światła odrzucona — urządzenie niedostępne", dev.name)
@@ -309,7 +371,7 @@ class BridgeCore:
             text = payload.decode("utf-8", errors="replace")
         else:
             text = "" if payload is None else str(payload)
-        if dev.type == "light_cct":
+        if dev.type in LIGHT_TYPES:
             try:
                 values = [int(part) for part in text.split()]
             except ValueError:

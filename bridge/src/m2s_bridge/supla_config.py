@@ -23,7 +23,14 @@ LOCK_FILE_NAME = "channels.lock.json"
 STATE_FILES_PATH = "/var/lib/supla-device"
 
 # typ urządzenia w devices.yaml -> typ kanału supla-device
-SUPLA_TYPES = {"onoff": "CustomRelay", "light_cct": "MatterLight", "meter": "MatterMeter"}
+# Grupa świateł to dla SUPLA zwykłe światło: ten sam typ kanału i format tematów.
+SUPLA_TYPES = {
+    "onoff": "CustomRelay",
+    "light_cct": "MatterLight",
+    "meter": "MatterMeter",
+    "light_group": "MatterLight",
+}
+LIGHT_TYPES = ("light_cct", "light_group")
 
 # Nazwy typów z YAML oznaczające ten sam typ kanału po stronie serwera SUPLA — przejście
 # między nimi nie narusza trwałości kanałów (MatterMeter to jednofazowy ElectricityMeterParsed).
@@ -91,7 +98,7 @@ def _meter_channel(config: Config, dev: Device) -> dict[str, Any]:
 
 
 def _channel(config: Config, dev: Device) -> dict[str, Any]:
-    if dev.type == "light_cct":
+    if dev.type in LIGHT_TYPES:
         return _light_channel(config, dev)
     if dev.type == "meter":
         return _meter_channel(config, dev)
@@ -153,7 +160,7 @@ def build_supla_config(
     if config.mqtt.password:
         mqtt["password"] = config.mqtt.password
     supla: dict[str, Any] = {"server": server, "mail": mail}
-    if any(dev.type == "light_cct" for dev in devices):
+    if any(dev.type in LIGHT_TYPES for dev in devices):
         supla["proto"] = PROTO_WITH_CCT
     return {
         "name": device_name,

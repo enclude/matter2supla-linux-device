@@ -15,7 +15,11 @@ import yaml
 from .meter import MEASUREMENTS
 
 # Typy urządzeń obsługiwane przez łącznik. Kolejne (jasność, czujniki) dojdą tutaj.
-DEVICE_TYPES = ("onoff", "light_cct", "meter")
+DEVICE_TYPES = ("onoff", "light_cct", "meter", "light_group")
+
+# Grupa świateł: jeden kanał SUPLA sterujący kilkoma światłami naraz. Nie ma własnego węzła
+# (node_id i endpoint są zerowe), a jej skład (`members`) wolno zmieniać bez wpływu na kanał.
+GROUP_TYPE = "light_group"
 
 # Urządzenie sterowane tylko z panelu i przez MQTT, bez kanału SUPLA (nie trafia do pliku).
 NO_CHANNEL = -1
@@ -61,6 +65,8 @@ class Device:
     # Tylko typ `meter`: pomiary podawane przez urządzenie (patrz meter.py). Ustalane przy
     # dodaniu kanału; każdy z nich musi być w komunikacie stanu, inaczej SUPLA odrzuca odczyt.
     measurements: tuple[str, ...] = ()
+    # Tylko typ `light_group`: światła należące do grupy jako pary (węzeł, endpoint).
+    members: tuple[tuple[int, int], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -82,6 +88,9 @@ class Config:
     update_check: bool = True
     web: WebConfig = field(default_factory=WebConfig)
     devices: tuple[Device, ...] = ()
+    # Endpointy (węzeł, endpoint) celowo zostawione bez kanału SUPLA - `auto_add` je pomija.
+    # Wpis powstaje przy parowaniu z wyborem "bez kanału" albo po usunięciu światła z grupy.
+    no_channel: tuple[tuple[int, int], ...] = ()
 
 
 def _require_int(value: Any, what: str, minimum: int = 0, maximum: int | None = None) -> int:
@@ -104,6 +113,30 @@ def _measurements(item: dict[str, Any], dev_type: str, where: str) -> tuple[str,
             f"{where}.measurements: wymagana niepusta lista spośród: {', '.join(MEASUREMENTS)}"
         )
     return tuple(m for m in MEASUREMENTS if m in value)
+
+
+def _targets(value: Any, where: str) -> tuple[tuple[int, int], ...]:
+    """Lista par (węzeł, endpoint) zapisana jako `[{node_id: N, endpoint: E}, ...]`."""
+    if value is None:
+        return ()
+    if not isinstance(value, list):
+        raise ConfigError(f"{where}: oczekiwano listy")
+    result: list[tuple[int, int]] = []
+    for index, item in enumerate(value):
+        if not isinstance(item, dict) or "node_id" not in item or "endpoint" not in item:
+            raise ConfigError(f"{where}[{index}]: oczekiwano mapy z polami node_id i endpoint")
+        target = (
+            _require_int(item["node_id"], f"{where}[{index}].node_id", 1),
+            _require_int(item["endpoint"], f"{where}[{index}].endpoint", 0, 65535),
+        )
+        if target in result:
+            raise ConfigError(f"{where}: powtórzony węzeł {target[0]} endpoint {target[1]}")
+        result.append(target)
+    return tuple(result)
+
+
+def _targets_to_raw(targets: tuple[tuple[int, int], ...]) -> list[dict[str, int]]:
+    return [{"node_id": node_id, "endpoint": endpoint} for node_id, endpoint in targets]
 
 
 def _section(raw: dict[str, Any], key: str) -> dict[str, Any]:
@@ -170,7 +203,11 @@ def parse_config(raw: Any) -> Config:
         where = f"devices[{index}]"
         if not isinstance(item, dict):
             raise ConfigError(f"{where}: oczekiwano mapy")
-        missing = [k for k in ("name", "node_id", "endpoint", "type", "supla_channel") if k not in item]
+        is_group = item.get("type") == GROUP_TYPE
+        required = ("name", "type", "supla_channel") if is_group else (
+            "name", "node_id", "endpoint", "type", "supla_channel"
+        )
+        missing = [k for k in required if k not in item]
         if missing:
             raise ConfigError(f"{where}: brak pól: {', '.join(missing)}")
         name = str(item["name"])
@@ -182,17 +219,20 @@ def parse_config(raw: Any) -> Config:
                 f"{where}.type: nieznany typ {dev_type!r} (obsługiwane: {', '.join(DEVICE_TYPES)})"
             )
         caption = item.get("caption")
+        if not is_group and item.get("members"):
+            raise ConfigError(f"{where}.members: pole dotyczy tylko typu `{GROUP_TYPE}`")
         devices.append(
             Device(
                 name=name,
-                node_id=_require_int(item["node_id"], f"{where}.node_id", 1),
-                endpoint=_require_int(item["endpoint"], f"{where}.endpoint", 0, 65535),
+                node_id=0 if is_group else _require_int(item["node_id"], f"{where}.node_id", 1),
+                endpoint=0 if is_group else _require_int(item["endpoint"], f"{where}.endpoint", 0, 65535),
                 type=dev_type,
                 supla_channel=_require_int(
                     item["supla_channel"], f"{where}.supla_channel", 0, MAX_SUPLA_CHANNEL
                 ),
                 caption=None if caption is None else str(caption),
                 measurements=_measurements(item, dev_type, where),
+                members=_targets(item.get("members"), f"{where}.members") if is_group else (),
             )
         )
 
@@ -207,6 +247,7 @@ def parse_config(raw: Any) -> Config:
         update_check=update_check,
         web=web,
         devices=tuple(devices),
+        no_channel=_targets(raw.get("no_channel"), "no_channel"),
     )
 
 
@@ -233,13 +274,16 @@ def config_to_raw(config: Config) -> dict[str, Any]:
         item: dict[str, Any] = {"name": dev.name}
         if dev.caption:
             item["caption"] = dev.caption
-        item.update(
-            node_id=dev.node_id, endpoint=dev.endpoint, type=dev.type, supla_channel=dev.supla_channel
-        )
+        if dev.type == GROUP_TYPE:
+            item.update(type=dev.type, supla_channel=dev.supla_channel, members=_targets_to_raw(dev.members))
+        else:
+            item.update(
+                node_id=dev.node_id, endpoint=dev.endpoint, type=dev.type, supla_channel=dev.supla_channel
+            )
         if dev.measurements:
             item["measurements"] = list(dev.measurements)
         devices.append(item)
-    return {
+    raw: dict[str, Any] = {
         "matter": {"url": config.matter.url},
         "mqtt": mqtt,
         "heartbeat_sec": config.heartbeat_sec,
@@ -250,6 +294,9 @@ def config_to_raw(config: Config) -> dict[str, Any]:
         "web": {"enabled": config.web.enabled, "host": config.web.host, "port": config.web.port},
         "devices": devices,
     }
+    if config.no_channel:
+        raw["no_channel"] = _targets_to_raw(config.no_channel)
+    return raw
 
 
 _FILE_HEADER = (
@@ -282,6 +329,8 @@ def _check_unique(devices: list[Device]) -> None:
                 f"({seen_channels[dev.supla_channel]} i {dev.name})"
             )
         seen_channels[dev.supla_channel] = dev.name
+        if dev.type == GROUP_TYPE:
+            continue  # grupa nie ma własnego węzła; jej światła mogą mieć też osobne kanały
         # Licznik może dzielić endpoint z gniazdkiem — to osobny kanał z własnymi tematami.
         target = (dev.node_id, dev.endpoint, dev.type == "meter")
         if target in seen_targets:

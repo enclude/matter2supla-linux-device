@@ -17,8 +17,17 @@ from typing import Any
 import aiomqtt
 
 from . import light, meter
-from .config import MAX_SUPLA_CHANNEL, NO_CHANNEL, Config, ConfigError, Device, check_devices, save_config
-from .core import BridgeCore
+from .config import (
+    GROUP_TYPE,
+    MAX_SUPLA_CHANNEL,
+    NO_CHANNEL,
+    Config,
+    ConfigError,
+    Device,
+    check_devices,
+    save_config,
+)
+from .core import LIGHT_TYPES, BridgeCore
 from .diagnostics import build_diagnostics
 from .matter_client import MatterConnectionError, MatterError
 from .supla_config import ChannelConflictError, write_supla_config
@@ -28,6 +37,12 @@ from .version import UpdateChecker
 log = logging.getLogger(__name__)
 
 COMMISSION_TIMEOUT_SEC = 300
+# Co zrobić z urządzeniem po sparowaniu: osobny kanał (domyślnie), bez kanału albo `group:<nazwa>`.
+TARGET_CHANNEL = "channel"
+TARGET_NONE = "none"
+TARGET_GROUP_PREFIX = "group:"
+NEW_NODE_WAIT_SEC = 15
+MAX_GROUP_MEMBERS = 32
 LEVEL_CONTROL_CLUSTER = 8
 
 ACCOUNT_FILE_NAME = "account.json"
@@ -103,6 +118,9 @@ class Manager:
         self._commission_task: asyncio.Task[None] | None = None
         self._change_lock = asyncio.Lock()
         self._extras: tuple[Device, ...] = ()  # urządzenia bez kanału SUPLA, sterowane z panelu
+        # Parowanie z wyborem "do grupy" / "bez kanału": węzły znane przed jego rozpoczęciem.
+        # Dopóki trwa, `auto_add` nie rusza węzłów spoza tej listy - o nich decyduje wynik parowania.
+        self._known_before_commission: set[int] | None = None
 
     # --- MQTT ---------------------------------------------------------------
 
@@ -116,7 +134,15 @@ class Manager:
 
     def _mapped(self) -> set[tuple[int, int, bool]]:
         # trzeci człon: czy to licznik (może dzielić endpoint z gniazdkiem)
-        return {(d.node_id, d.endpoint, d.type == "meter") for d in self.config.devices}
+        return {
+            (d.node_id, d.endpoint, d.type == "meter") for d in self.config.devices if d.type != GROUP_TYPE
+        }
+
+    def groups(self) -> list[Device]:
+        return [d for d in self.config.devices if d.type == GROUP_TYPE]
+
+    def _groups_of(self, target: tuple[int, int]) -> list[Device]:
+        return [g for g in self.groups() if target in g.members]
 
     async def refresh_runtime(self) -> None:
         """Uzgadnia listę urządzeń łącznika: kanały SUPLA plus światła bez kanału.
@@ -177,7 +203,19 @@ class Manager:
                     continue
                 kind = endpoint_type(attrs, endpoint)
                 entry = {**base, "endpoint": endpoint, "type": kind}
-                if kind == "onoff":
+                can_be_channel = kind == "onoff" or (kind == "light_cct" and self.config.lights_as_channels)
+                in_groups = self._groups_of((node_id, endpoint)) if kind == "light_cct" else []
+                # `manual`: kanał nie powstanie sam, ale da się go dodać przyciskiem w panelu.
+                if in_groups:
+                    names = ", ".join(f"„{g.caption or g.name}”" for g in in_groups)
+                    result.append(
+                        {**entry, "supported": False, "manual": can_be_channel, "reason": f"w grupie {names}, bez osobnego kanału"}
+                    )
+                elif can_be_channel and (node_id, endpoint) in self.config.no_channel:
+                    result.append(
+                        {**entry, "supported": False, "manual": True, "reason": "bez kanału SUPLA (wybór w panelu)"}
+                    )
+                elif kind == "onoff":
                     result.append({**entry, "supported": True, "reason": None})
                 elif kind == "light_cct" and self.config.lights_as_channels:
                     result.append({**entry, "supported": True, "reason": None})
@@ -189,8 +227,15 @@ class Manager:
                     result.append({**entry, "supported": False, "reason": "ten rodzaj światła nie jest jeszcze obsługiwany"})
             # Licznik energii to osobny kanał (zwykle osobny endpoint, bez klastra OnOff).
             for endpoint in meters:
-                if (node_id, endpoint, True) not in mapped:
-                    result.append({**base, "endpoint": endpoint, "type": "meter", "supported": True, "reason": None})
+                if (node_id, endpoint, True) in mapped:
+                    continue
+                entry = {**base, "endpoint": endpoint, "type": "meter"}
+                if (node_id, endpoint) in self.config.no_channel:
+                    result.append(
+                        {**entry, "supported": False, "manual": True, "reason": "licznik bez kanału SUPLA (wybór w panelu)"}
+                    )
+                else:
+                    result.append({**entry, "supported": True, "reason": None})
         return result
 
     def _new_name(self, product: Any, node_id: int, endpoint: int, taken: set[str], kind: str = "") -> str:
@@ -229,11 +274,13 @@ class Manager:
             measurements=measurements,
         )
 
-    async def _apply(self, devices: list[Device]) -> None:
+    async def _apply(self, devices: list[Device], no_channel: list[tuple[int, int]] | None = None) -> None:
         devices = link_meter_captions(devices)
         check_devices(devices)
         old_topics = set(self.core.set_topics)
         new_config = dataclasses.replace(self.config, devices=tuple(devices))
+        if no_channel is not None:
+            new_config = dataclasses.replace(new_config, no_channel=tuple(dict.fromkeys(no_channel)))
         if self.config_path is not None:
             save_config(new_config, self.config_path)  # najpierw plik: nieudany zapis niczego nie zmienia
         self.config = new_config
@@ -267,6 +314,9 @@ class Manager:
             devices = list(self.config.devices)
             added: list[Device] = []
             for candidate in self.candidates():
+                held = self._known_before_commission
+                if held is not None and candidate["node_id"] not in held:
+                    continue  # o tym węźle zdecyduje wynik trwającego parowania
                 if candidate["supported"]:
                     dev = self._device_for(candidate, devices)
                     devices.append(dev)
@@ -287,12 +337,113 @@ class Manager:
                     break
             else:
                 raise ManagerError("nie ma takiego wolnego endpointu z obsługiwanym klastrem")
-            if not candidate["supported"]:
+            if not candidate["supported"] and not candidate.get("manual"):
                 raise ManagerError(f"tego urządzenia nie można jeszcze dodać: {candidate['reason']}")
             devices = list(self.config.devices)
             dev = self._device_for(candidate, devices)
-            await self._apply(devices + [dev])
+            kept = [t for t in self.config.no_channel if t != (node_id, endpoint)]
+            await self._apply(devices + [dev], kept)
             return dev
+
+    # --- grupy świateł ------------------------------------------------------
+
+    def lights(self) -> list[dict[str, Any]]:
+        """Światła z regulacją bieli, które mogą należeć do grupy (także te już w grupach)."""
+        own = {(d.node_id, d.endpoint): d for d in self.config.devices if d.type == "light_cct"}
+        found: dict[tuple[int, int], dict[str, Any]] = {}
+        for node_id, node in sorted(self.core.nodes.items()):
+            attrs = node["attributes"]
+            for endpoint in onoff_endpoints(attrs):
+                if endpoint_type(attrs, endpoint) != "light_cct":
+                    continue
+                dev = own.get((node_id, endpoint))
+                label = (dev.caption or dev.name) if dev else str(attrs.get("0/40/5") or attrs.get("0/40/3") or "Światło")
+                found[(node_id, endpoint)] = {
+                    "label": label,
+                    "available": bool(node["available"]),
+                    "supla_channel": dev.supla_channel if dev else None,
+                }
+        for group in self.groups():
+            for target in group.members:
+                found.setdefault(target, {"label": "nieznane urządzenie", "available": False, "supla_channel": None})
+        return [
+            {"node_id": str(node_id), "endpoint": endpoint, **info}
+            for (node_id, endpoint), info in sorted(found.items())
+        ]
+
+    def _check_members(self, members: list[tuple[int, int]], current: tuple[tuple[int, int], ...] = ()) -> list[tuple[int, int]]:
+        members = list(dict.fromkeys(members))
+        if len(members) > MAX_GROUP_MEMBERS:
+            raise ManagerError(f"grupa może mieć najwyżej {MAX_GROUP_MEMBERS} świateł")
+        for node_id, endpoint in members:
+            if (node_id, endpoint) in current:
+                continue  # światło już w grupie zostaje, nawet gdy chwilowo nie odpowiada
+            node = self.core.nodes.get(node_id)
+            if node is None or endpoint_type(node["attributes"], endpoint) != "light_cct":
+                raise ManagerError(
+                    f"węzeł {node_id} endpoint {endpoint} nie jest światłem z regulacją jasności i bieli"
+                )
+        return members
+
+    def _find_group(self, name: str) -> Device:
+        for group in self.groups():
+            if group.name == name:
+                return group
+        raise ManagerError(f"nie ma grupy {name}")
+
+    def _no_channel_after(self, devices: list[Device], released: list[tuple[int, int]]) -> list[tuple[int, int]]:
+        """Lista "bez kanału" po zmianie składu grup.
+
+        Światło wyjęte z grupy nie dostaje kanału samo (kanał jest nieusuwalny) - trafia na listę
+        i czeka na decyzję w panelu. Światło należące do jakiejś grupy na liście być nie musi.
+        """
+        grouped = {t for d in devices if d.type == GROUP_TYPE for t in d.members}
+        own = {(d.node_id, d.endpoint) for d in devices if d.type == "light_cct"}
+        result = [t for t in self.config.no_channel if t not in grouped]
+        result += [t for t in released if t not in grouped and t not in own]
+        return result
+
+    async def create_group(self, caption: str, members: list[tuple[int, int]]) -> Device:
+        """Tworzy grupę świateł jako nowy, trwały kanał SUPLA (może być na razie pusta)."""
+        caption = caption.strip()[:100]
+        if not caption:
+            raise ManagerError("podaj nazwę grupy")
+        async with self._change_lock:
+            devices = list(self.config.devices)
+            channel = max((d.supla_channel for d in devices), default=-1) + 1
+            if channel > MAX_SUPLA_CHANNEL:
+                raise ManagerError("wyczerpano numery kanałów SUPLA (0–127)")
+            taken = {d.name for d in devices} | {d.name for d in self._extras}
+            name, counter = f"grupa_{channel}", 2
+            while name in taken:
+                name, counter = f"grupa_{channel}_{counter}", counter + 1
+            group = Device(
+                name=name,
+                node_id=0,
+                endpoint=0,
+                type=GROUP_TYPE,
+                supla_channel=channel,
+                caption=caption,
+                members=tuple(self._check_members(members)),
+            )
+            devices.append(group)
+            await self._apply(devices, self._no_channel_after(devices, []))
+            log.info("dodano kanał SUPLA %d: grupa świateł %s (%d świateł)", channel, name, len(group.members))
+            return group
+
+    async def set_group_members(self, name: str, members: list[tuple[int, int]]) -> Device:
+        async with self._change_lock:
+            return await self._set_group_members(name, members)
+
+    async def _set_group_members(self, name: str, members: list[tuple[int, int]]) -> Device:
+        group = self._find_group(name)
+        checked = tuple(self._check_members(members, group.members))
+        updated = dataclasses.replace(group, members=checked)
+        devices = [updated if d is group else d for d in self.config.devices]
+        released = [t for t in group.members if t not in checked]
+        await self._apply(devices, self._no_channel_after(devices, released))
+        log.info("grupa %s: %d świateł", name, len(checked))
+        return updated
 
     def _find(self, name: str) -> Device:
         for dev in self.core.devices:
@@ -302,7 +453,7 @@ class Manager:
 
     async def set_light(self, name: str, brightness: int | None, temperature: int | None) -> None:
         dev = self._find(name)
-        if dev.type != "light_cct":
+        if dev.type not in LIGHT_TYPES:
             raise ManagerError("to urządzenie nie jest światłem")
         if not await self.core.set_light(dev, brightness, temperature):
             raise ManagerError("komenda nie została wykonana — urządzenie niedostępne lub błąd Matter")
@@ -395,32 +546,73 @@ class Manager:
         except (MatterError, MatterConnectionError) as err:
             raise ManagerError(str(err)) from err
 
-    def start_commission(self, code: str, network_only: bool) -> None:
+    def start_commission(self, code: str, network_only: bool, target: str = TARGET_CHANNEL) -> None:
         code = code.strip()
         if not code:
             raise ManagerError("podaj kod parowania")
         if self.commission_state["running"]:
             raise ManagerError("parowanie już trwa")
+        target = target or TARGET_CHANNEL
+        if target.startswith(TARGET_GROUP_PREFIX):
+            self._find_group(target[len(TARGET_GROUP_PREFIX):])
+        elif target not in (TARGET_CHANNEL, TARGET_NONE):
+            raise ManagerError("nieznany wybór przeznaczenia urządzenia")
         client = self._client()
+        if target != TARGET_CHANNEL:
+            self._known_before_commission = set(self.core.nodes)
         self.commission_state = {"running": True, "message": "Parowanie trwa (do kilku minut)…", "error": None}
-        self._commission_task = asyncio.create_task(self._commission(client, code, network_only))
+        self._commission_task = asyncio.create_task(self._commission(client, code, network_only, target))
 
-    async def _commission(self, client: Any, code: str, network_only: bool) -> None:
+    async def _commission(self, client: Any, code: str, network_only: bool, target: str = TARGET_CHANNEL) -> None:
         args: dict[str, Any] = {"code": code}
         if network_only:
             args["network_only"] = True
         try:
             node = await client.command("commission_with_code", timeout=COMMISSION_TIMEOUT_SEC, **args)
             node_id = node.get("node_id") if isinstance(node, dict) else None
-            self.commission_state = {
-                "running": False,
-                "message": f"Sparowano węzeł {node_id}." if node_id is not None else "Sparowano.",
-                "error": None,
-            }
+            message = f"Sparowano węzeł {node_id}." if node_id is not None else "Sparowano."
+            if target != TARGET_CHANNEL and node_id is not None:
+                message += " " + await self._assign_new_node(node_id, node, target)
+            self.commission_state = {"running": False, "message": message, "error": None}
             log.info("sparowano węzeł %s", node_id)
         except (MatterError, MatterConnectionError) as err:
             self.commission_state = {"running": False, "message": None, "error": str(err)}
             log.warning("parowanie nie powiodło się: %s", err)
+        except (ManagerError, ConfigError, OSError) as err:
+            self.commission_state = {
+                "running": False,
+                "message": None,
+                "error": f"urządzenie sparowane, ale nie udało się go przypisać: {err}",
+            }
+            log.error("przypisanie po parowaniu nie powiodło się: %s", err)
+        finally:
+            if self._known_before_commission is not None:
+                self._known_before_commission = None
+                await self.auto_add()  # reszta endpointów nowego węzła idzie zwykłą drogą
+
+    async def _assign_new_node(self, node_id: int, node: Any, target: str) -> str:
+        """Stosuje wybór z formularza parowania do świeżo sparowanego węzła; zwraca opis dla panelu."""
+        attributes = node.get("attributes") if isinstance(node, dict) else None
+        if not isinstance(attributes, dict) or not attributes:
+            # Odpowiedź bez atrybutów: czekamy, aż węzeł dotrze zdarzeniem node_added.
+            async with asyncio.timeout(NEW_NODE_WAIT_SEC):
+                while not self.core.nodes.get(node_id, {}).get("attributes"):
+                    await asyncio.sleep(0.2)
+            attributes = self.core.nodes[node_id]["attributes"]
+        if node_id not in self.core.nodes:
+            self.core.nodes[node_id] = {"available": True, "attributes": dict(attributes)}
+        endpoints = onoff_endpoints(attributes)
+        async with self._change_lock:
+            if target == TARGET_NONE:
+                held = [(node_id, e) for e in dict.fromkeys(endpoints + meter.endpoints(attributes))]
+                await self._apply(list(self.config.devices), list(self.config.no_channel) + held)
+                return "Urządzenie zostaje bez kanału SUPLA; kanał można dodać z listy urządzeń."
+            lights = [(node_id, e) for e in endpoints if endpoint_type(attributes, e) == "light_cct"]
+            if not lights:
+                return "To nie jest światło z regulacją jasności i bieli, więc nie trafiło do grupy."
+            group = self._find_group(target[len(TARGET_GROUP_PREFIX):])
+            await self._set_group_members(group.name, list(group.members) + lights)
+            return f"Światło dodane do grupy „{group.caption or group.name}”."
 
     # --- diagnostyka --------------------------------------------------------
 
@@ -447,10 +639,15 @@ class Manager:
             "caption_linked": dev.type == "meter"
             and any(d.type == "onoff" and d.node_id == dev.node_id for d in self.config.devices),
         }
-        if dev.type == "light_cct":
+        if dev.type in LIGHT_TYPES:
             current = self.core.light_state(dev)
             view["brightness"] = current["brightness"] if current else None
             view["temperature"] = current["temperature"] if current else None
+        if dev.type == GROUP_TYPE:
+            view["members"] = [{"node_id": str(n), "endpoint": e} for n, e in dev.members]
+            view["members_available"] = sum(
+                1 for member in self.core.members_of(dev) if self.core.light_state(member) is not None
+            )
         if dev.type == "meter":
             # jednostki jak w stanie MQTT: V, A, W, kWh, Hz
             values = self.core.meter_state(dev)
@@ -481,6 +678,7 @@ class Manager:
             "supla_error": self.supla_error
             or (None if self._supla_server and self._supla_mail else "Nie podano konta SUPLA — wpisz serwer i e-mail w sekcji „Konto SUPLA”."),
             "devices": devices,
+            "lights": self.lights(),
             "candidates": candidates,
             "commission": self.commission_state,
         }
