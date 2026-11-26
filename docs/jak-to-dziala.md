@@ -8,7 +8,7 @@
 | `matter-server` | `ghcr.io/matter-js/matterjs-server:stable` | kontroler Matter z API WebSocket |
 | `mqtt` | `eclipse-mosquitto:2` | broker dla lokalnych usług stosu |
 | `bridge` | budowany z `bridge/` | łącznik Matter ⇄ MQTT, generator konfiguracji SUPLA, panel WWW |
-| `supla` | budowany z `supla-device/` | `supla-device` dla Linuksa — wirtualne urządzenie w SUPLA Cloud |
+| `supla` | budowany z `supla-device/` | `supla-device` dla Linuksa - wirtualne urządzenie w SUPLA Cloud |
 
 Przepływ: urządzenie Matter ⇄ `matter-server` ⇄ `bridge` ⇄ MQTT ⇄ `supla` ⇄ SUPLA Cloud.
 
@@ -24,7 +24,7 @@ Dla gniazdka (typ `onoff`); `m2s` to domyślny `mqtt.topic_prefix`:
 
 Zasady:
 
-- Stan zmienia się dopiero po potwierdzeniu z urządzenia — łącznik nie „zgaduje” wyniku komendy. Gdy komenda się nie powiedzie, łącznik publikuje ponownie faktyczny stan.
+- Stan zmienia się dopiero po potwierdzeniu z urządzenia - łącznik nie „zgaduje” wyniku komendy. Gdy komenda się nie powiedzie, łącznik publikuje ponownie faktyczny stan.
 - Komendy z flagą retain są ignorowane (to polecenia sprzed restartu).
 - Komenda do urządzenia niedostępnego jest odrzucana.
 
@@ -32,8 +32,8 @@ Zasady:
 
 | Kierunek | Temat | Treść |
 | --- | --- | --- |
-| Matter → SUPLA | `m2s/<node>/<endpoint>/light_cct/state` (retained) | `S B T` — `S`: 1 świeci, 0 zgaszone, -1 niedostępne; `B`: jasność 1–100; `T`: biel 0 (ciepła) – 100 (zimna) |
-| SUPLA → Matter | `m2s/<node>/<endpoint>/light_cct/set` | `B T` — `B`: 0 = zgaś, 1–100 = jasność; `T`: 0–100 albo -1 = bez zmiany |
+| Matter → SUPLA | `m2s/<node>/<endpoint>/light_cct/state` (retained) | `S B T` - `S`: 1 świeci, 0 zgaszone, -1 niedostępne; `B`: jasność 1–100; `T`: biel 0 (ciepła) – 100 (zimna) |
+| SUPLA → Matter | `m2s/<node>/<endpoint>/light_cct/set` | `B T` - `B`: 0 = zgaś, 1–100 = jasność; `T`: 0–100 albo -1 = bez zmiany |
 
 Licznik energii (`meter`) publikuje na `m2s/<node>/<endpoint>/meter/state` (retained) JSON z pomiarami, np. `{"voltage": 230.0, "current": 8.002, "power": 1840.5, "energy": 2.5}` (V, A, W, kWh), albo pusty komunikat, gdy urządzenie jest niedostępne. Licznik nie ma tematu komend.
 
@@ -45,7 +45,7 @@ Kanał SUPLA przechodzi w offline, gdy:
 - łącznik został zatrzymany → przy zamykaniu publikuje `-1`;
 - łącznik padł bez sprzątania → stan wygasa w `supla-device` po `state_expiration_sec` (łącznik w normalnej pracy ponawia publikację co `heartbeat_sec`).
 
-Sprawdzone uruchomieniem `supla-device`: offline po `{"state": -1}` i po 120 s bez wiadomości. Na prawdziwym gniazdku: po krótkim odłączeniu kontroler uznaje węzeł za niedostępny dopiero po wygaśnięciu subskrypcji (ok. 1 min 44 s), więc kanał nie przechodzi w offline natychmiast. Dłuższe odłączenie → offline w aplikacji SUPLA — niesprawdzone.
+Sprawdzone uruchomieniem `supla-device`: offline po `{"state": -1}` i po 120 s bez wiadomości. Na prawdziwym gniazdku: po krótkim odłączeniu kontroler uznaje węzeł za niedostępny dopiero po wygaśnięciu subskrypcji (ok. 1 min 44 s), więc kanał nie przechodzi w offline natychmiast. Dłuższe odłączenie → offline w aplikacji SUPLA - niesprawdzone.
 
 Restart `supla-device` nie wyłącza włączonego gniazdka (potwierdzone na GRILLPLATS).
 
@@ -70,10 +70,10 @@ Kolejność i typ kanałów w SUPLA są trwałe. **Wolno tylko dopisywać urząd
 Zabezpieczenia:
 
 - łącznik zapisuje `config/supla/channels.lock.json` i odmawia wygenerowania konfiguracji, w której kanał zniknął albo zmienił typ;
-- urządzenie wyparowane z Matter zostaje jako kanał offline — nie usuwaj go z `devices.yaml`;
+- urządzenie wyparowane z Matter zostaje jako kanał offline - nie usuwaj go z `devices.yaml`;
 - typy nieobsługiwane nie dostają kanału „na zapas”, żeby nie zająć numeru niewłaściwym typem.
 
-Reset — **wyłącznie po świadomym usunięciu urządzenia z SUPLA Cloud**:
+Reset - **wyłącznie po świadomym usunięciu urządzenia z SUPLA Cloud**:
 
 ```bash
 docker compose run --rm bridge gen-supla-config --force --server svrXX.supla.org --mail <e-mail-konta>
@@ -99,7 +99,7 @@ Wzór: `config/devices.example.yaml`. Jeśli pliku nie ma, łącznik startuje z 
 | `web.enabled`, `web.host`, `web.port` | `true`, `127.0.0.1`, `8099` | panel WWW ([panel-www.md](panel-www.md)) |
 | `devices` | `[]` | lista urządzeń; wypełnia ją łącznik |
 
-Wpis na liście `devices`: `name` (litery, cyfry, `_`, `-`), opcjonalny `caption`, `node_id`, `endpoint`, `type`, `supla_channel`. Ręcznie wolno tylko dopisywać na końcu. Plik jest nadpisywany przez łącznik — komentarze dodane ręcznie nie przetrwają.
+Wpis na liście `devices`: `name` (litery, cyfry, `_`, `-`), opcjonalny `caption`, `node_id`, `endpoint`, `type`, `supla_channel`. Ręcznie wolno tylko dopisywać na końcu. Plik jest nadpisywany przez łącznik - komentarze dodane ręcznie nie przetrwają.
 
 ## Pliki instalacji
 
@@ -108,7 +108,7 @@ Wpis na liście `devices`: `name` (litery, cyfry, `_`, `-`), opcjonalny `caption
 | `.env` | interfejs, port dongla, hasło panelu | nie |
 | `config/devices.yaml` | ustawienia łącznika i mapowanie kanałów | nie |
 | `config/supla/account.json` | serwer i e-mail konta SUPLA (z panelu) | nie |
-| `config/supla/supla-device.yaml` | wygenerowana konfiguracja `supla-device` — nie edytuj ręcznie | nie |
+| `config/supla/supla-device.yaml` | wygenerowana konfiguracja `supla-device` - nie edytuj ręcznie | nie |
 | `config/supla/channels.lock.json` | zapis trwałych kanałów | nie |
 | `config/mosquitto/mosquitto.conf` | konfiguracja brokera | tak |
 | `data/otbr` | sieć Thread | nie |

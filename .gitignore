@@ -6,6 +6,7 @@ backups-update/
 pre-restore-*/
 config/devices.yaml
 config/supla/
+config/web-sessions.json
 
 # Python
 __pycache__/

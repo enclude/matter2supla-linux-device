@@ -44,9 +44,9 @@ Bez zmiennej `M2S_TEST_MQTT` ten test jest pomijany.
 
 ## Dopisywanie obsługi nowego typu urządzenia
 
-1. Sparuj urządzenie — trafi na listę „bez kanału” i nie zajmie numeru kanału SUPLA.
+1. Sparuj urządzenie - trafi na listę „bez kanału” i nie zajmie numeru kanału SUPLA.
 2. Pobierz zrzut diagnostyczny (panel → „Diagnostyka”, [zrzut](img/panel-bez-kanalu.png), albo `docker compose run --rm bridge diagnostics <node_id> > node.json`). Domyślny zrzut nie zawiera numeru seryjnego ani danych sieci.
-3. Zrzut ma format komendy `import_test_node` kontrolera — można go wczytać do `matter-server` jako węzeł testowy i rozwijać obsługę bez urządzenia. Ograniczenie: kontroler nie wykonuje komend na węzłach testowych.
+3. Zrzut ma format komendy `import_test_node` kontrolera - można go wczytać do `matter-server` jako węzeł testowy i rozwijać obsługę bez urządzenia. Ograniczenie: kontroler nie wykonuje komend na węzłach testowych.
 4. Przykładowe zrzuty leżą w `bridge/tests/fixtures/` (gniazdko GRILLPLATS, żarówka KAJPLATS E27 WS).
 5. Nowy typ dopisuje się w `config.py` (`DEVICE_TYPES`), `manager.py` (rozpoznanie endpointu), `core.py` (stan i komendy) oraz `supla_config.py` (typ kanału `supla-device`).
 
@@ -54,18 +54,18 @@ Pamiętaj o trwałości kanałów: typ kanału SUPLA przypisany urządzeniu jest
 
 ## Obrazy
 
-- `bridge/Dockerfile` — `python:3.12-slim`, proces jako uid 1000.
-- `supla-device/Dockerfile` — buduje `supla-device` z **przypiętego commita** gałęzi `main` repozytorium SUPLA/supla-device (argument `SUPLA_DEVICE_REF`), bo wydanie v26.9.2 nie ma `expiration_time_sec` dla źródła MQTT. Do budowy dołączane są rozszerzenia z `supla-device/extensions/`.
+- `bridge/Dockerfile` - `python:3.12-slim`, proces jako uid 1000.
+- `supla-device/Dockerfile` - buduje `supla-device` z **przypiętego commita** gałęzi `main` repozytorium SUPLA/supla-device (argument `SUPLA_DEVICE_REF`), bo wydanie v26.9.2 nie ma `expiration_time_sec` dla źródła MQTT. Do budowy dołączane są rozszerzenia z `supla-device/extensions/`.
 - Oba obrazy przyjmują argumenty budowy `M2S_BUILD_VERSION` (domyślnie `dev`) i `M2S_BUILD_REVISION`; ustawia je pipeline. Wydawanie wersji: [aktualizacja.md](aktualizacja.md).
-- `supla-device/entrypoint.sh` — czeka na konfigurację i restartuje `supla-device` po każdej zmianie pliku.
+- `supla-device/entrypoint.sh` - czeka na konfigurację i restartuje `supla-device` po każdej zmianie pliku.
 
 Budowa obu obrazów była sprawdzona na x86-64 i na arm64 (Raspberry Pi 4B).
 
 ## Rozszerzenia supla-device
 
-`supla-device/extensions/` zawiera własne typy kanałów dołączane przy budowie obrazu (`SUPLA_LINUX_EXTENSION_DIRS` w `supla-device/Dockerfile`). `matter_light` dodaje typ `MatterLight` — ściemniacz z regulacją bieli: przekazuje jasność i biel z SUPLA do łącznika i odbiera stan światła. Wersja `supla-device` dla Linuksa ma dla świateł tylko klasę testową bez sterowania, stąd własne rozszerzenie.
+`supla-device/extensions/` zawiera własne typy kanałów dołączane przy budowie obrazu (`SUPLA_LINUX_EXTENSION_DIRS` w `supla-device/Dockerfile`). `matter_light` dodaje typ `MatterLight` - ściemniacz z regulacją bieli: przekazuje jasność i biel z SUPLA do łącznika i odbiera stan światła. Wersja `supla-device` dla Linuksa ma dla świateł tylko klasę testową bez sterowania, stąd własne rozszerzenie.
 
-`matter_meter` dodaje typ `MatterMeter` — standardowy `ElectricityMeterParsed` zgłaszany jako jednofazowy, który przy nieważnych danych (urządzenie niedostępne, stan wygasł) przełącza kanał w offline.
+`matter_meter` dodaje typ `MatterMeter` - standardowy `ElectricityMeterParsed` zgłaszany jako jednofazowy, który przy nieważnych danych (urządzenie niedostępne, stan wygasł) przełącza kanał w offline.
 
 ## Znane ograniczenia
 

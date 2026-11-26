@@ -299,7 +299,7 @@ main() {
   [ -f "$STATE_BACKUP" ] || die "kopia stanu nie powstała"
   PROJECT_BACKUP="$UPDATE_DIR/m2s-project-$stamp.tar.gz"
   local -a exclude=(./data ./backups ./backups-update ./.git ./rcp-build './pre-restore-*'
-                    ./.env ./config/devices.yaml ./config/supla)
+                    ./.env ./config/devices.yaml ./config/supla ./config/web-sessions.json)
   case "$UPDATE_DIR/" in "$DIR"/*) exclude+=("./${UPDATE_DIR#"$DIR"/}") ;; esac
   ( umask 077
     tar --numeric-owner -czpf "$PROJECT_BACKUP.tmp" -C "$DIR" --anchored "${exclude[@]/#/--exclude=}" . )

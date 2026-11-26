@@ -11,12 +11,12 @@ Plik `backups/m2s-backup-RRRRMMDD-GGMMSS.tar.gz`:
 | Ścieżka | Zawartość |
 | --- | --- |
 | `data/matter` | tożsamość kontrolera Matter i parowania |
-| `data/otbr` | ustawienia sieci Thread oraz `dataset-active.txt` — dataset zapisany czytelnie, żeby sieć dało się odtworzyć także na innym donglu |
+| `data/otbr` | ustawienia sieci Thread oraz `dataset-active.txt` - dataset zapisany czytelnie, żeby sieć dało się odtworzyć także na innym donglu |
 | `data/supla` | GUID / AUTHKEY urządzenia SUPLA |
 | `config/` | `devices.yaml` (mapowanie kanałów), `supla/` (konto, wygenerowana konfiguracja, `channels.lock.json`), konfiguracja Mosquitto |
 | `.env` | ustawienia, w tym hasło panelu |
 
-Kod projektu nie jest kopiowany — pochodzi z repozytorium.
+Kod projektu nie jest kopiowany - pochodzi z repozytorium.
 
 > **Kopia zawiera wszystkie sekrety instalacji.** Kto ją ma, może przejąć kontrolę nad urządzeniami Matter i podszyć się pod urządzenie SUPLA. Przechowuj ją poza tym urządzeniem, w miejscu z ograniczonym dostępem.
 
@@ -35,7 +35,7 @@ Zmienne środowiskowe:
 | `M2S_BACKUP_DIR` | `./backups` | katalog docelowy |
 | `M2S_BACKUP_KEEP` | `14` | ile najnowszych kopii zostawić |
 
-Tych samych zmiennych używa `host/update.sh`, który przed aktualizacją zapisuje kopię do osobnego katalogu `backups-update/` ([aktualizacja.md](aktualizacja.md)) — rotacja codziennych kopii jej nie obejmuje.
+Tych samych zmiennych używa `host/update.sh`, który przed aktualizacją zapisuje kopię do osobnego katalogu `backups-update/` ([aktualizacja.md](aktualizacja.md)) - rotacja codziennych kopii jej nie obejmuje.
 
 Jeśli `otbr` nie działa, kopia powstanie bez `dataset-active.txt` (skrypt wypisze ostrzeżenie).
 
@@ -56,12 +56,12 @@ systemctl list-timers m2s-backup.timer
 
 Kopia leżąca na tej samej karcie SD nie chroni przed jej awarią. Możliwości:
 
-- **panel WWW**, sekcja „Kopie zapasowe” ([zrzut](img/panel-kopie.png)) → „Pobierz” — połączenie nie jest szyfrowane, więc tylko w zaufanej sieci;
+- **panel WWW**, sekcja „Kopie zapasowe” ([zrzut](img/panel-kopie.png)) → „Pobierz” - połączenie nie jest szyfrowane, więc tylko w zaufanej sieci;
 - skopiowanie pliku z katalogu `backups/` własnym sposobem (np. `scp`). Katalog ma uprawnienia 700 i należy do uid 1000.
 
 ## Odtworzenie na innym urządzeniu
 
-1. Przygotuj nowy host jak przy instalacji, kroki 1–6 ([instalacja-raspberry-pi.md](instalacja-raspberry-pi.md)): Docker, katalog projektu z repozytorium, `sudo ./host/setup-host.sh <interfejs>`, reguła udev dla dongla. Kroków z `.env`, katalogami i tworzeniem sieci Thread **nie wykonuj** — przyjdą z kopii.
+1. Przygotuj nowy host jak przy instalacji, kroki 1–6 ([instalacja-raspberry-pi.md](instalacja-raspberry-pi.md)): Docker, katalog projektu z repozytorium, `sudo ./host/setup-host.sh <interfejs>`, reguła udev dla dongla. Kroków z `.env`, katalogami i tworzeniem sieci Thread **nie wykonuj** - przyjdą z kopii.
 2. **Wyłącz starą instalację** (`docker compose down` na starym hoście), jeśli jeszcze działa.
 3. Odtwórz:
 
@@ -81,11 +81,11 @@ Kopia leżąca na tej samej karcie SD nie chroni przed jej awarią. Możliwości
 ### Zachowanie `restore.sh`
 
 - Jeśli w `data/` są już dane, skrypt odmówi; żeby je zastąpić, dodaj `--force` jako drugi argument.
-- Przed rozpakowaniem zatrzymuje stos (`docker compose down`) i przenosi dotychczasowy stan (`data/`, kopię `config/` i `.env`) do katalogu `pre-restore-RRRRMMDD-GGMMSS/` — można do niego wrócić ręcznie.
+- Przed rozpakowaniem zatrzymuje stos (`docker compose down`) i przenosi dotychczasowy stan (`data/`, kopię `config/` i `.env`) do katalogu `pre-restore-RRRRMMDD-GGMMSS/` - można do niego wrócić ręcznie.
 
 ### Inny dongle niż przy tworzeniu kopii
 
-Plik ustawień border routera jest przypisany do konkretnego dongla. Z innym donglem border router nie znajdzie swoich ustawień — przywróć wtedy sieć Thread z zapisanego datasetu (skrypt wypisuje tę podpowiedź):
+Plik ustawień border routera jest przypisany do konkretnego dongla. Z innym donglem border router nie znajdzie swoich ustawień - przywróć wtedy sieć Thread z zapisanego datasetu (skrypt wypisuje tę podpowiedź):
 
 ```bash
 docker exec otbr ot-ctl dataset set active $(cat data/otbr/dataset-active.txt)

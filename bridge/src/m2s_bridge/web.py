@@ -8,7 +8,9 @@ from __future__ import annotations
 import asyncio
 import base64
 import binascii
+import hashlib
 import hmac
+import json
 import logging
 import os
 import re
@@ -28,7 +30,10 @@ from .qr import QrError, decode_matter_qr
 log = logging.getLogger(__name__)
 
 SESSION_COOKIE = "m2s_session"
-SESSION_TTL_SEC = 30 * 24 * 3600
+SESSION_TTL_SEC = 180 * 24 * 3600
+SESSION_RENEW_SEC = 24 * 3600  # ważność przedłużana przy wejściu do panelu, nie częściej niż raz na dobę
+SESSION_FILE_NAME = "web-sessions.json"
+MAX_SESSIONS = 200
 BACKUP_NAME = re.compile(r"m2s-backup-\d{8}-\d{6}\.tar\.gz")
 MAX_UPLOAD_BYTES = 12 * 1024 * 1024  # zdjęcie kodu QR z telefonu
 LOOPBACK_HOSTS = ("127.0.0.1", "::1", "localhost")
@@ -54,6 +59,75 @@ def _authorized(request: web.Request, password: str) -> bool:
     return hmac.compare_digest(given.encode(), password.encode())
 
 
+class SessionStore:
+    """Sesje panelu zapisane w pliku, żeby restart łącznika nie wylogowywał.
+
+    W pliku są tylko skróty SHA-256 z hasła panelu i tokenu, nie same tokeny: odczytanie pliku
+    nie pozwala się zalogować, a zmiana hasła unieważnia wszystkie sesje.
+    """
+
+    def __init__(self, password: str, path: Path | None = None) -> None:
+        self._password = password
+        self._path = path
+        self._sessions: dict[str, float] = {}
+        if path is not None:
+            try:
+                raw = json.loads(path.read_text(encoding="utf-8"))
+                now = time.time()
+                self._sessions = {
+                    str(key): float(expires)
+                    for key, expires in raw.get("sessions", {}).items()
+                    if isinstance(expires, (int, float)) and expires > now
+                }
+            except FileNotFoundError:
+                pass
+            except (OSError, ValueError, AttributeError) as err:
+                log.warning("panel: nie można odczytać sesji z %s (%s) — wymagane ponowne logowanie", path, err)
+
+    def _key(self, token: str) -> str:
+        return hashlib.sha256(f"{self._password}\0{token}".encode()).hexdigest()
+
+    def _save(self) -> None:
+        if self._path is None:
+            return
+        try:
+            tmp = self._path.with_name(self._path.name + ".tmp")
+            tmp.write_text(json.dumps({"sessions": self._sessions}), encoding="utf-8")
+            tmp.chmod(0o600)
+            tmp.replace(self._path)
+        except OSError as err:  # sesja działa dalej w pamięci
+            log.warning("panel: nie można zapisać sesji do %s: %s", self._path, err)
+
+    def create(self) -> str:
+        now = time.time()
+        alive = sorted(((e, k) for k, e in self._sessions.items() if e > now), reverse=True)[: MAX_SESSIONS - 1]
+        self._sessions = {key: expires for expires, key in alive}
+        token = secrets.token_urlsafe(32)
+        self._sessions[self._key(token)] = now + SESSION_TTL_SEC
+        self._save()
+        return token
+
+    def valid(self, token: str) -> bool:
+        expires = self._sessions.get(self._key(token)) if token else None
+        return expires is not None and expires > time.time()
+
+    def renew(self, token: str) -> bool:
+        """Przedłuża ważną sesję; True, gdy ciasteczko trzeba wysłać ponownie."""
+        if not self.valid(token):
+            return False
+        key = self._key(token)
+        fresh = time.time() + SESSION_TTL_SEC
+        if fresh - self._sessions[key] < SESSION_RENEW_SEC:
+            return False
+        self._sessions[key] = fresh
+        self._save()
+        return True
+
+    def remove(self, token: str) -> None:
+        if token and self._sessions.pop(self._key(token), None) is not None:
+            self._save()
+
+
 def list_backups(directory: Path | None) -> list[dict[str, Any]]:
     if directory is None or not directory.is_dir():
         return []
@@ -66,15 +140,20 @@ def list_backups(directory: Path | None) -> list[dict[str, Any]]:
 
 
 def create_app(
-    manager: Manager, password: str | None = None, backup_dir: Path | None = None
+    manager: Manager,
+    password: str | None = None,
+    backup_dir: Path | None = None,
+    session_file: Path | None = None,
 ) -> web.Application:
-    sessions: dict[str, float] = {}  # token -> czas wygaśnięcia; w pamięci, restart łącznika wylogowuje
+    sessions = SessionStore(password or "", session_file)
+
+    def set_session_cookie(response: web.StreamResponse, token: str) -> None:
+        response.set_cookie(SESSION_COOKIE, token, max_age=SESSION_TTL_SEC, httponly=True, samesite="Strict")
 
     def logged_in(request: web.Request) -> bool:
         if not password:
             return True
-        expires = sessions.get(request.cookies.get(SESSION_COOKIE, ""))
-        if expires is not None and expires > time.time():
+        if sessions.valid(request.cookies.get(SESSION_COOKIE, "")):
             return True
         return _authorized(request, password)  # nagłówek Basic — dla skryptów i curl
 
@@ -114,7 +193,11 @@ def create_app(
 
     async def index(request: web.Request) -> web.Response:
         html = resources.files("m2s_bridge").joinpath("web_ui.html").read_text(encoding="utf-8")
-        return web.Response(text=html, content_type="text/html", headers={"Cache-Control": "no-store"})
+        response = web.Response(text=html, content_type="text/html", headers={"Cache-Control": "no-store"})
+        token = request.cookies.get(SESSION_COOKIE, "")
+        if password and sessions.renew(token):
+            set_session_cookie(response, token)
+        return response
 
     async def login_form(request: web.Request) -> web.StreamResponse:
         if logged_in(request):
@@ -130,17 +213,12 @@ def create_app(
             await asyncio.sleep(1)  # spowalnia zgadywanie hasła
             log.warning("panel: nieudane logowanie z %s", request.remote)
             return login_page("Nieprawidłowe hasło.", status=401)
-        now = time.time()
-        for token in [t for t, expires in sessions.items() if expires <= now]:
-            del sessions[token]
-        token = secrets.token_urlsafe(32)
-        sessions[token] = now + SESSION_TTL_SEC
         response = web.Response(status=303, headers={"Location": "/"})
-        response.set_cookie(SESSION_COOKIE, token, max_age=SESSION_TTL_SEC, httponly=True, samesite="Strict")
+        set_session_cookie(response, sessions.create())
         return response
 
     async def logout(request: web.Request) -> web.Response:
-        sessions.pop(request.cookies.get(SESSION_COOKIE, ""), None)
+        sessions.remove(request.cookies.get(SESSION_COOKIE, ""))
         response = web.json_response({"ok": True})
         response.del_cookie(SESSION_COOKIE)
         return response
@@ -254,7 +332,9 @@ async def start_web(manager: Manager, password: str | None) -> web.AppRunner:
     config = manager.config.web
     check_web_security(config, password)
     backup_dir = Path(os.environ.get("M2S_BACKUP_DIR", "/backups"))
-    runner = web.AppRunner(create_app(manager, password, backup_dir), access_log=None)
+    # Obok devices.yaml: katalog konfiguracji jest trwały i zapisywalny dla łącznika.
+    session_file = manager.config_path.parent / SESSION_FILE_NAME if manager.config_path else None
+    runner = web.AppRunner(create_app(manager, password, backup_dir, session_file), access_log=None)
     await runner.setup()
     await web.TCPSite(runner, config.host, config.port).start()
     log.info("panel WWW: http://%s:%d", config.host, config.port)

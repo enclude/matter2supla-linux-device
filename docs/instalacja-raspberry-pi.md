@@ -12,8 +12,8 @@ Po przygotowaniu systemu (punkt 1) i pobraniu projektu (punkt 3) całą resztę 
 sudo ./host/install.sh --lan [interfejs]
 ```
 
-- `--lan` — panel WWW dostępny z sieci lokalnej, z wylosowanym hasłem (zapisanym w `.env`); bez tej opcji panel działa tylko na samym urządzeniu;
-- `interfejs` — interfejs LAN; domyślnie ten, przez który wychodzi trasa domyślna.
+- `--lan` - panel WWW dostępny z sieci lokalnej, z wylosowanym hasłem (zapisanym w `.env`); bez tej opcji panel działa tylko na samym urządzeniu;
+- `interfejs` - interfejs LAN; domyślnie ten, przez który wychodzi trasa domyślna.
 
 Skrypt wykonuje punkty 2 oraz 4–10 tej instrukcji i włącza codzienną kopię zapasową. Jest bezpieczny do ponownego uruchomienia: istniejących plików `.env` i `config/devices.yaml` nie zmienia, a sieci Thread, która już istnieje, nie tworzy od nowa. Wymaga, żeby w chwili uruchomienia podłączony był dokładnie jeden adapter szeregowy USB (dongle).
 
@@ -23,11 +23,11 @@ Sam krok tworzenia sieci Thread i startu usług można powtórzyć osobno: `sudo
 
 ### Gotowe obrazy
 
-`bridge` i `supla-device` są publikowane w GitHub Container Registry przez pipeline `.github/workflows/docker.yml` (amd64 i arm64; numer wersji i `latest` dla tagów `vX.Y.Z`, `edge` dla gałęzi `main` — patrz [aktualizacja.md](aktualizacja.md)). `docker compose pull bridge supla` pobiera je zamiast budować; wersję wybiera zmienna `M2S_VERSION` w `.env`. Budowa lokalna: `docker compose build bridge supla` albo `M2S_BUILD=1 sudo ./host/init-thread.sh`.
+`bridge` i `supla-device` są publikowane w GitHub Container Registry przez pipeline `.github/workflows/docker.yml` (amd64 i arm64; numer wersji i `latest` dla tagów `vX.Y.Z`, `edge` dla gałęzi `main` - patrz [aktualizacja.md](aktualizacja.md)). `docker compose pull bridge supla` pobiera je zamiast budować; wersję wybiera zmienna `M2S_VERSION` w `.env`. Budowa lokalna: `docker compose build bridge supla` albo `M2S_BUILD=1 sudo ./host/init-thread.sh`.
 
 ## 1. System
 
-- System **64-bitowy** (Raspberry Pi OS 64-bit albo Ubuntu Server arm64) — obrazy kontenerów są arm64.
+- System **64-bitowy** (Raspberry Pi OS 64-bit albo Ubuntu Server arm64) - obrazy kontenerów są arm64.
 - Raspberry Pi podłączone do sieci LAN, najlepiej kablem. W sieci musi działać IPv6 na łączu (nie może być wyłączone w systemie); router IPv6 w LAN nie jest wymagany.
 - Nie WSL2 i nie kontener z NAT-em: wszystkie usługi pracują w sieci hosta, bo Matter wymaga IPv6, multicastu i mDNS.
 
@@ -59,7 +59,7 @@ Wszystkie dalsze polecenia wykonuj w tym katalogu.
 
 ## 4. Ustawienia sieci hosta (sysctl)
 
-Odczytaj nazwę interfejsu, którym Raspberry Pi jest w LAN — zwykle `eth0` lub `end0`, przy Wi-Fi `wlan0`:
+Odczytaj nazwę interfejsu, którym Raspberry Pi jest w LAN - zwykle `eth0` lub `end0`, przy Wi-Fi `wlan0`:
 
 ```bash
 ip -br link
@@ -77,7 +77,7 @@ Zaobserwowane na RPi: NetworkManager ustawia `accept_ra=0` na swoim interfejsie 
 
 ## 5. Wi-Fi i Bluetooth
 
-Jeśli RPi jest podłączone kablem, wyłącz Wi-Fi — dwa interfejsy w tej samej podsieci utrudniają pracę mDNS i routing do sieci Thread:
+Jeśli RPi jest podłączone kablem, wyłącz Wi-Fi - dwa interfejsy w tej samej podsieci utrudniają pracę mDNS i routing do sieci Thread:
 
 ```bash
 sudo nmcli radio wifi off
@@ -117,13 +117,13 @@ mkdir -p data/otbr data/matter data/supla config/supla
 sudo chown -R 1000:1000 data/matter data/supla config
 ```
 
-Kontenery `matter-server`, `bridge` i `supla` pracują jako użytkownik o uid 1000 — bez `chown` nie zapiszą swoich danych.
+Kontenery `matter-server`, `bridge` i `supla` pracują jako użytkownik o uid 1000 - bez `chown` nie zapiszą swoich danych.
 
 Uzupełnij `.env`:
 
 | Zmienna | Znaczenie |
 | --- | --- |
-| `INFRA_IF` | interfejs LAN z kroku 4 (w przykładzie jest `ens18` — na RPi **zmień**, np. na `eth0`) |
+| `INFRA_IF` | interfejs LAN z kroku 4 (w przykładzie jest `ens18` - na RPi **zmień**, np. na `eth0`) |
 | `RCP_DEVICE` | port dongla, domyślnie `/dev/thread-rcp` |
 | `RCP_BAUDRATE` | prędkość portu, domyślnie `460800` |
 | `SUPLA_SERVER`, `SUPLA_MAIL` | opcjonalne; wygodniej wpisać konto w panelu (dane z panelu mają pierwszeństwo) |
@@ -156,7 +156,7 @@ docker exec otbr ot-ctl state                # po chwili: leader
 
 To robi się raz. Ustawienia sieci zapisują się w `data/otbr` i po restarcie border router sam wraca jako lider tej samej sieci (sprawdzone restartem RPi).
 
-Jeśli `otbr` restartuje się w kółko — patrz [rozwiązywanie problemów](rozwiazywanie-problemow.md).
+Jeśli `otbr` restartuje się w kółko - patrz [rozwiązywanie problemów](rozwiazywanie-problemow.md).
 
 ## 9. Start całego stosu
 
@@ -170,7 +170,7 @@ Pierwsze budowanie obrazu `supla` (kompilacja `supla-device`) trwa na Raspberry 
 
 Czego się spodziewać:
 
-- `supla` wypisuje „czekam na /etc/supla-device/supla-device.yaml” — to normalne, dopóki nie ma konta SUPLA i pierwszego kanału;
+- `supla` wypisuje „czekam na /etc/supla-device/supla-device.yaml” - to normalne, dopóki nie ma konta SUPLA i pierwszego kanału;
 - `bridge` loguje połączenie z brokerem MQTT i z `matter-server` oraz adres panelu WWW;
 - jeśli `matter-server` restartuje się z błędem `Unknown interface`, w `.env` jest zła nazwa `INFRA_IF`.
 
@@ -185,17 +185,17 @@ docker compose run --rm bridge nodes
 
 Drugie polecenie powinno pokazać `dataset Thread ustawiony: True` oraz `Bluetooth: True`. Dataset można też wkleić w panelu (rozwijana sekcja „Dataset sieci Thread” na dole [„Parowania urządzenia”](img/panel-parowanie.png)).
 
-**Dataset to klucz do sieci Thread** — nie zapisuj go w repozytorium ani w notatkach dostępnych dla innych.
+**Dataset to klucz do sieci Thread** - nie zapisuj go w repozytorium ani w notatkach dostępnych dla innych.
 
 ## 11. Dalej
 
-1. [Panel WWW](panel-www.md) — dostęp, hasło, konto SUPLA ([jak wygląda panel](img/panel.png), [logowanie](img/panel-logowanie.png), [konto SUPLA](img/panel-konto-supla.png)).
+1. [Panel WWW](panel-www.md) - dostęp, hasło, konto SUPLA ([jak wygląda panel](img/panel.png), [logowanie](img/panel-logowanie.png), [konto SUPLA](img/panel-konto-supla.png)).
 2. [Parowanie urządzeń](parowanie.md).
-3. [Kopie zapasowe](kopie-zapasowe.md) — włącz harmonogram od razu po pierwszym parowaniu.
+3. [Kopie zapasowe](kopie-zapasowe.md) - włącz harmonogram od razu po pierwszym parowaniu.
 
 ## Aktualizacja
 
-Aktualizację do nowego wydania wykonuje ręcznie uruchamiany skrypt — robi kopię zapasową, podmienia pliki projektu i obrazy, sprawdza wynik i w razie niepowodzenia wraca do poprzedniej wersji:
+Aktualizację do nowego wydania wykonuje ręcznie uruchamiany skrypt - robi kopię zapasową, podmienia pliki projektu i obrazy, sprawdza wynik i w razie niepowodzenia wraca do poprzedniej wersji:
 
 ```bash
 sudo ./host/update.sh --check     # czy jest nowsze wydanie
@@ -220,5 +220,5 @@ Co jest zrobione, żeby nie zużywać nośnika bez potrzeby:
 - broker MQTT nie zapisuje niczego na dysk (`persistence false`);
 - łącznik zapisuje `config/` tylko przy zmianie listy urządzeń lub konta.
 
-Katalogu `data/` **nie przenoś do pamięci RAM**: zawiera tożsamość kontrolera Matter, klucze sieci Thread i identyfikator urządzenia SUPLA. Po utracie zasilania trzeba by parować wszystko od nowa. Na karcie SD można dodatkowo ograniczyć zapisy systemu (np. dziennik systemowy w pamięci) — to ustawienia systemu, poza tym projektem, nieuruchamiane tutaj.
+Katalogu `data/` **nie przenoś do pamięci RAM**: zawiera tożsamość kontrolera Matter, klucze sieci Thread i identyfikator urządzenia SUPLA. Po utracie zasilania trzeba by parować wszystko od nowa. Na karcie SD można dodatkowo ograniczyć zapisy systemu (np. dziennik systemowy w pamięci) - to ustawienia systemu, poza tym projektem, nieuruchamiane tutaj.
 

@@ -1,0 +1,16 @@
+# Strona do wgrywania firmware dongla Thread. Web Serial wymaga HTTPS, więc przed kontenerem
+# musi stać serwer pośredniczący z certyfikatem (wyjątek: http://localhost do prób lokalnych).
+services:
+  webflasher:
+    build: .
+    image: matter2supla-webflasher:local
+    ports:
+      - "${WEBFLASHER_PORT:-3001}:80"
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /var/cache/nginx
+      - /var/run
+    logging:
+      driver: json-file
+      options: { max-size: "5m", max-file: "2" }

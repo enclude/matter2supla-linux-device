@@ -257,3 +257,35 @@ async def test_state_reports_version(tmp_path, monkeypatch):
         assert "update-notice" in page and "sudo ./host/update.sh" in page
     finally:
         await client.close()
+
+
+def test_sessions_survive_restart_and_follow_password(tmp_path, monkeypatch):
+    from m2s_bridge import web as web_module
+    from m2s_bridge.web import SessionStore
+
+    path = tmp_path / "web-sessions.json"
+    store = SessionStore("tajne", path)
+    token = store.create()
+    assert store.valid(token) and not store.valid("inny") and not store.valid("")
+    assert token not in path.read_text(encoding="utf-8")  # w pliku tylko skrót
+
+    assert SessionStore("tajne", path).valid(token)  # po restarcie łącznika
+    assert not SessionStore("nowe-haslo", path).valid(token)  # zmiana hasła unieważnia sesje
+
+    # przedłużanie: nie częściej niż raz na dobę
+    assert store.renew(token) is False
+    real_time = web_module.time.time
+    monkeypatch.setattr(web_module.time, "time", lambda: real_time() + 2 * 24 * 3600)
+    assert store.renew(token) is True and store.renew(token) is False
+    monkeypatch.setattr(web_module.time, "time", lambda: real_time() + 181 * 24 * 3600)
+    assert store.valid(token)  # przedłużona o 180 dni od dnia odnowienia
+    monkeypatch.setattr(web_module.time, "time", lambda: real_time() + 183 * 24 * 3600)
+    assert not store.valid(token) and store.renew(token) is False
+    monkeypatch.setattr(web_module.time, "time", real_time)
+
+    store.remove(token)
+    assert not SessionStore("tajne", path).valid(token)
+
+    path.write_text("to nie jest JSON", encoding="utf-8")
+    broken = SessionStore("tajne", path)  # uszkodzony plik: po prostu ponowne logowanie
+    assert broken.valid(broken.create())

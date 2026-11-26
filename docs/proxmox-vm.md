@@ -35,10 +35,10 @@ Dodatek ustawia dla `matter-server` `apparmor=unconfined`. Na Ubuntu 26.04 jest 
 ## Zapora i multicast
 
 - Jeśli dla VM włączona jest zapora Proxmox, jej conntrack działa na hoście Proxmox. Dokumentacja matterjs-server zaleca wtedy na **hipernadzorcy** `net.netfilter.nf_conntrack_udp_timeout_stream=3600` (inaczej urządzenia bateryjne gubią subskrypcje). Najprościej: zapora wyłączona dla tej VM.
-- Ruch multicast IPv6 (mDNS, RA) musi przechodzić przez most `vmbr0`. Przy problemach z wykrywaniem urządzeń sprawdź `multicast_snooping` mostu — wskazówka **niezweryfikowana** na sprzęcie.
+- Ruch multicast IPv6 (mDNS, RA) musi przechodzić przez most `vmbr0`. Przy problemach z wykrywaniem urządzeń sprawdź `multicast_snooping` mostu - wskazówka **niezweryfikowana** na sprzęcie.
 
 ## Znane ograniczenia
 
 - **Adapter Bluetooth po passthrough może nie działać radiowo.** W sprawdzanej konfiguracji adapter hosta (Qualcomm, `0cf3:e009`) był w VM widoczny, kontroler zgłaszał włączony Bluetooth i przyjął dataset Thread, ale trzy kolejne skany nie wykryły żadnego urządzenia (prawdopodobnie brak podłączonych anten). Parowanie kończyło się błędem „No commissionable device was discovered”. Zanim zaczniesz parować, upewnij się, że skan Bluetooth w VM widzi jakiekolwiek urządzenia w otoczeniu.
-- Bez działającego Bluetootha pozostaje parowanie urządzeń będących już w innej sieci (udostępnienie z innej aplikacji, opcja „urządzenie jest już w sieci”) — ta droga nie była sprawdzana, a dongle nie bierze wtedy udziału w komunikacji z urządzeniem.
-- Komentarze w `docker-compose.yml`, `.env.example` i `host/setup-host.sh` mówią o „VM” — pochodzą z tego wariantu; pliki są te same dla Raspberry Pi.
+- Bez działającego Bluetootha pozostaje parowanie urządzeń będących już w innej sieci (udostępnienie z innej aplikacji, opcja „urządzenie jest już w sieci”) - ta droga nie była sprawdzana, a dongle nie bierze wtedy udziału w komunikacji z urządzeniem.
+- Komentarze w `docker-compose.yml`, `.env.example` i `host/setup-host.sh` mówią o „VM” - pochodzą z tego wariantu; pliki są te same dla Raspberry Pi.

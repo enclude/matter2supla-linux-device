@@ -17,14 +17,14 @@ docker compose run --rm bridge nodes
 
 Pierwszy wiersz powinien zawierać `dataset Thread ustawiony: True` i `Bluetooth: True`. Jeśli nie:
 
-- dataset — [instalacja, krok 10](instalacja-raspberry-pi.md#10-dataset-thread-dla-kontrolera);
-- Bluetooth — [instalacja, kroki 5 i 7](instalacja-raspberry-pi.md#5-wi-fi-i-bluetooth) oraz [rozwiązywanie problemów](rozwiazywanie-problemow.md#kontroler-nie-ma-bluetootha).
+- dataset - [instalacja, krok 10](instalacja-raspberry-pi.md#10-dataset-thread-dla-kontrolera);
+- Bluetooth - [instalacja, kroki 5 i 7](instalacja-raspberry-pi.md#5-wi-fi-i-bluetooth) oraz [rozwiązywanie problemów](rozwiazywanie-problemow.md#kontroler-nie-ma-bluetootha).
 
-Warto też mieć już wpisane konto SUPLA ([panel-www.md](panel-www.md#konto-supla)) — bez niego kanał nie powstanie do czasu jego zapisania.
+Warto też mieć już wpisane konto SUPLA ([panel-www.md](panel-www.md#konto-supla)) - bez niego kanał nie powstanie do czasu jego zapisania.
 
 ## Tryb parowania urządzenia
 
-Urządzenie musi być w trybie parowania i **nie może być sparowane z innym systemem** (wtedy najpierw reset fabryczny), a podczas parowania powinno znajdować się blisko hosta — Bluetooth ma mały zasięg.
+Urządzenie musi być w trybie parowania i **nie może być sparowane z innym systemem** (wtedy najpierw reset fabryczny), a podczas parowania powinno znajdować się blisko hosta - Bluetooth ma mały zasięg.
 
 **IKEA GRILLPLATS** (wg instrukcji IKEA):
 
@@ -38,7 +38,7 @@ Dla innych urządzeń sposób wejścia w tryb parowania i resetu podaje instrukc
 ![Parowanie w toku (przykładowe dane)](img/panel-parowanie-trwa.png)
 
 1. Otwórz panel i przejdź do sekcji „Parowanie urządzenia” ([zrzut](img/panel-parowanie.png)).
-2. Podaj kod: wpisz `MT:…` / kod numeryczny albo użyj „Zrób zdjęcie kodu QR” (telefon; panel musi być dostępny z LAN — [panel-www.md](panel-www.md#z-sieci-lan--z-hasłem)). Kod QR jest na naklejce urządzenia.
+2. Podaj kod: wpisz `MT:…` / kod numeryczny albo użyj „Zrób zdjęcie kodu QR” (telefon; panel musi być dostępny z LAN - [panel-www.md](panel-www.md#z-sieci-lan---z-hasłem)). Kod QR jest na naklejce urządzenia.
 3. Pole „Urządzenie jest już w sieci…” zostaw **odznaczone** (parowanie przez Bluetooth).
 4. „Sparuj”. Parowanie trwa do kilku minut (limit: 5 minut); wynik pojawi się pod formularzem.
 
@@ -62,13 +62,13 @@ Parowanie przez Bluetooth Raspberry Pi 4 bywa zawodne. W testach połączenie BL
 
 Co robić:
 
-1. **Ponów.** Kliknij „Sparuj” jeszcze raz z tym samym kodem — to zwykle wystarcza.
-2. Sprawdź, czy urządzenie jest nadal w trybie parowania (GRILLPLATS: 15 minut od włożenia do prądu). Jeśli nie — wyjmij i włóż ponownie albo zresetuj.
+1. **Ponów.** Kliknij „Sparuj” jeszcze raz z tym samym kodem - to zwykle wystarcza.
+2. Sprawdź, czy urządzenie jest nadal w trybie parowania (GRILLPLATS: 15 minut od włożenia do prądu). Jeśli nie - wyjmij i włóż ponownie albo zresetuj.
 3. Zbliż urządzenie do Raspberry Pi na czas parowania.
-4. Jeśli błąd brzmi „No commissionable device was discovered” przy każdej próbie — kontroler w ogóle nie widzi urządzenia przez Bluetooth: [rozwiązywanie problemów](rozwiazywanie-problemow.md#no-commissionable-device-was-discovered).
+4. Jeśli błąd brzmi „No commissionable device was discovered” przy każdej próbie - kontroler w ogóle nie widzi urządzenia przez Bluetooth: [rozwiązywanie problemów](rozwiazywanie-problemow.md#no-commissionable-device-was-discovered).
 
 Komunikat błędu jest w panelu oraz w logach: `docker compose logs bridge matter-server`.
 
 ## Sekrety
 
-Kody parowania `MT:…` i dataset Thread są sekretami — nie zapisuj ich w repozytorium, zgłoszeniach ani zrzutach ekranu. Panel ukrywa oba pola jak hasła.
+Kody parowania `MT:…` i dataset Thread są sekretami - nie zapisuj ich w repozytorium, zgłoszeniach ani zrzutach ekranu. Panel ukrywa oba pola jak hasła.
