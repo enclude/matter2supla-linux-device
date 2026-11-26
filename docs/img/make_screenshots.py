@@ -13,7 +13,9 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import os
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -21,6 +23,26 @@ from aiohttp import web
 from playwright.async_api import async_playwright
 
 from m2s_bridge.web import create_app
+
+# Przykładowy dziennik kontrolera dla zakładki „Logi” (zmyślone adresy i identyfikatory).
+MATTER_LOG = """\
+2026-11-26 20:26:22.027 NOTICE Discovery Initiating discovery of node with discriminator 1234
+2026-11-26 20:26:24.222 INFO ControllerCommissioner Establish PASE to device VP: 4476+36866
+2026-11-26 20:26:28.967 INFO BleChannel Peripheral AA:BB:CC:00:11:22: ATT_MTU still unknown, using the minimum BTP segment size of 20 bytes
+2026-11-26 20:26:38.359 INFO PaseClient Paired successfully » ble://AA:BB:CC:00:11:22 3↔3
+2026-11-26 20:26:38.374 INFO ControllerCommissioner Start commissioning of node @1:8 into fabric 1
+2026-11-26 20:26:38.379 INFO ControllerCommissioner Executing commissioning step 0.1: GetInitialData
+2026-11-26 20:26:48.700 INFO ControllerCommissioner Executing commissioning step 7.1: GeneralCommissioning.ArmFailsafe
+2026-11-26 20:26:54.445 INFO ControllerCommissioner Executing commissioning step 8.1: GeneralCommissioning.ConfigureRegulatoryInformation
+2026-11-26 20:26:59.423 INFO ControllerCommissioner Executing commissioning step 10.1: OperationalCredentials.DeviceAttestation
+2026-11-26 20:27:24.552 INFO ControllerCommissioner Device attestation successfully verified with 1 accepted finding(s)
+2026-11-26 20:27:24.560 INFO ControllerCommissioner Executing commissioning step 11.1: OperationalCredentials.Certificates
+2026-11-26 20:27:45.862 INFO ControllerCommissioner Executing commissioning step 16.3: NetworkCommissioning.Thread
+2026-11-26 20:28:12.157 WARN ControllerCommissioner Commissioning channel dropped while configuring the operational network - assuming device is non-concurrent, proceeding to CASE
+2026-11-26 20:28:12.158 INFO ControllerCommissioner Executing commissioning step 18.1: Reconnect
+2026-11-26 20:28:34.528 INFO ControllerCommissioner Executing commissioning step 20.1: GeneralCommissioning.Complete
+2026-11-26 20:28:34.787 NOTICE CommissioningClient Commissioned peer12 as @1:8
+"""
 
 OUT = Path(__file__).parent
 PORT = 18099
@@ -102,6 +124,9 @@ class FakeManager:
 
 
 async def main() -> None:
+    log_file = Path(tempfile.mkdtemp()) / "matter-server.log"
+    log_file.write_text(MATTER_LOG, encoding="utf-8")
+    os.environ["M2S_MATTER_LOG"] = str(log_file)
     manager = FakeManager()
     app = create_app(manager, PASSWORD, None)  # type: ignore[arg-type]
 
@@ -153,6 +178,9 @@ async def main() -> None:
         await shot("parowanie", "#tab-parowanie section", "panel-parowanie")
         await shot("system", "#tab-system section >> nth=0", "panel-konto-supla")
         await shot("system", "#tab-system section >> nth=1", "panel-kopie")
+
+        await page.add_style_tag(content="#log-view { height: auto !important; }")
+        await shot("logi", "#tab-logi section", "panel-logi")
 
         manager.state["commission"] = {"running": True, "message": "Parowanie trwa (do kilku minut)…", "error": None}
         await page.wait_for_timeout(2500)

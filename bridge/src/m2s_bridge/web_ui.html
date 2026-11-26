@@ -80,6 +80,11 @@
   summary { cursor: pointer; font-weight: 600; font-size: 13px; }
   details > div { margin-top: 12px; }
   #group-form { margin-top: 16px; }
+  .logbar { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin-bottom: 12px; }
+  .logbar select, .logbar input[type=text] { width: auto; flex: 1 1 260px; max-width: 460px; }
+  .logbar .check { margin: 0; align-items: center; }
+  .logbar .check input { margin-top: 0; }
+  #log-view { margin: 0; height: 68vh; overflow: auto; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre; }
   #device-filter { margin-bottom: 12px; max-width: 420px; }
   .item { padding: 10px 8px; border-top: 1px solid var(--line); border-radius: 6px; }
   .item:hover { background: color-mix(in srgb, var(--line) 28%, transparent); }

@@ -172,6 +172,8 @@ Format pasuje do komendy `import_test_node` kontrolera, więc zrzut można wczyt
 
 ## Logi
 
+![Zakładka „Logi”: dziennik kontrolera Matter w czasie parowania (przykładowe dane)](img/panel-logi.png)
+
 Zakładka pokazuje koniec dziennika, odświeżany co 2 s, gdy jest otwarta:
 
 - **Kontroler Matter** - tu widać parowanie krok po kroku (wiersze „commissioning step”), próby połączenia Bluetooth i utratę łączności z urządzeniami;

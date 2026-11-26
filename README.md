@@ -57,10 +57,10 @@ Co obsługuje łącznik:
 | Funkcja | Stan |
 | --- | --- |
 | Gniazdko / przekaźnik (klaster OnOff): stan, sterowanie, dostępność | działa na sprzęcie (GRILLPLATS) |
-| Panel WWW: konto SUPLA, parowanie kodem i zdjęciem QR, kanały, diagnostyka, kopie | działa na sprzęcie |
+| Panel WWW: konto SUPLA, parowanie kodem i zdjęciem QR, kanały ze szczegółami i identyfikacją urządzenia („Znajdź”), lokalne nazwy, odnośniki do SUPLA Cloud, logi, diagnostyka, kopie | działa na sprzęcie |
 | Wersjonowane wydania i ręczna aktualizacja `host/update.sh` z kopią i wycofaniem | działa na sprzęcie; wycofanie sprawdzone tylko na atrapach |
 | Światła z regulacją bieli (KAJPLATS) jako kanał SUPLA „ściemniacz CCT”: jasność i temperatura bieli | działa na sprzęcie; wymaga protokołu SUPLA 28 na serwerze |
-| Grupy świateł: jeden kanał SUPLA dla kilku świateł tego samego rodzaju, obok zwykłych kanałów pojedynczych ([opis](docs/panel-www.md#grupy-świateł)) | sprawdzone testami, na prawdziwych żarówkach jeszcze nie |
+| Grupy świateł: jeden kanał SUPLA dla kilku świateł tego samego rodzaju, obok zwykłych kanałów pojedynczych ([opis](docs/panel-www.md#grupy-świateł)) | działa na sprzęcie (cztery KAJPLATS GU10 w jednej grupie): parowanie prosto do grupy, stan w SUPLA, sterowanie z panelu; sterowanie grupą z aplikacji SUPLA do potwierdzenia |
 | Licznik energii gniazdka (napięcie, prąd, moc, energia) - kanał jednofazowy | działa na sprzęcie (GRILLPLATS) |
 | Czujniki, inne typy urządzeń | nieobsługiwane - można sparować i pobrać zrzut diagnostyczny |
 

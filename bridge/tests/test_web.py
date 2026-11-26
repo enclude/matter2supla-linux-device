@@ -337,11 +337,11 @@ async def test_cloud_link_ids(tmp_path):
     supla_file = (tmp_path / "supla.yaml").read_text(encoding="utf-8")
     # wklejony adres kanału; pozostałe kanały dostają kolejne numery
     response = await client.post(
-        f"/api/devices/{plug}/cloud-id", json={"id": "https://cloud.supla.org/channels/17462", "fill_others": True}
+        f"/api/devices/{plug}/cloud-id", json={"id": "https://cloud.supla.org/channels/12345", "fill_others": True}
     )
     assert response.status == 200
-    assert (await (await client.get("/api/state")).json())["devices"][0]["cloud_id"] == 17462
-    assert load_config(tmp_path / "devices.yaml").devices[0].cloud_id == 17462
+    assert (await (await client.get("/api/state")).json())["devices"][0]["cloud_id"] == 12345
+    assert load_config(tmp_path / "devices.yaml").devices[0].cloud_id == 12345
     assert (tmp_path / "supla.yaml").read_text(encoding="utf-8") == supla_file  # SUPLA nie jest ruszana
     assert (await client.post(f"/api/devices/{plug}/cloud-id", json={"id": "abc"})).status == 400
     # zmiana konta kasuje identyfikatory - na nowym koncie będą inne

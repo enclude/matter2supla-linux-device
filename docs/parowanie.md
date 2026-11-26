@@ -57,6 +57,12 @@ Polecenie zapyta o kod (dzięki temu kod nie trafia do historii powłoki). Waria
 docker compose run --rm bridge commission --network-only
 ```
 
+## Ile to trwa i jak to śledzić
+
+Udane parowanie przez Bluetooth trwa ok. 2 minut na urządzenie: dane idą małymi porcjami, a kroków jest kilkanaście (uwierzytelnienie kodem, sprawdzenie certyfikatów, przekazanie sieci Thread, ponowne połączenie już przez Thread). Postęp widać w panelu w zakładce „Logi” (źródło „Kontroler Matter”, filtr `commissioning step`) - [zrzut](img/panel-logi.png).
+
+Jeśli urządzenie nie jest w trybie parowania, kontroler szuka go przez 3 minuty i dopiero wtedy zgłasza błąd. Po fabrycznym resecie urządzenie rozgłasza się pod nowym adresem Bluetooth; kontroler najpierw próbuje starego (w dzienniku „interface not found in proxy object”), a po chwili znajduje nowy - to nie jest błąd do naprawiania.
+
 ## Gdy parowanie się nie uda
 
 Parowanie przez Bluetooth Raspberry Pi 4 bywa zawodne. W testach połączenie BLE z gniazdkiem udawało się w części prób (błąd `le-connection-abort-by-local`, kod HCI 0x3e); pierwsze parowanie nie powiodło się po trzech próbach kontrolera, drugie się udało. Żarówka sparowała się za pierwszym razem.
