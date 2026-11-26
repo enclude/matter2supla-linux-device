@@ -55,7 +55,7 @@ Plik `config/devices.yaml` jest także zapisywany przez łącznik (przy dopisywa
 
 ![Formularz logowania](img/panel-logowanie.png)
 
-- Formularz z samym hasłem; sesja trzymana w ciasteczku przez 180 dni i przedłużana przy każdym wejściu do panelu. Restart łącznika ani hosta nie wylogowuje: sesje są zapisane w `config/web-sessions.json` (same skróty, bez tokenów). Zmiana hasła panelu unieważnia wszystkie sesje. Przycisk „Wyloguj” jest w nagłówku.
+- Formularz z samym hasłem; sesja trzymana w ciasteczku przez 180 dni i przedłużana przy każdym wejściu do panelu. Restart łącznika ani hosta nie wylogowuje: sesje są zapisane w `config/web-sessions.json` (same skróty, bez tokenów). Zmiana hasła panelu unieważnia wszystkie sesje. Sprawdzone na Raspberry Pi: po restarcie łącznika zalogowana przeglądarka nie musi podawać hasła ponownie. Przycisk „Wyloguj” jest w nagłówku.
 - Dla skryptów działa też nagłówek HTTP Basic (nazwa użytkownika dowolna):
 
   ```bash
