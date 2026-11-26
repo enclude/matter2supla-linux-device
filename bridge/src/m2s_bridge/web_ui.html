@@ -115,7 +115,8 @@
   <section id="candidates-section" hidden>
     <h2>Urządzenia Matter bez kanału</h2>
     <div id="candidates"></div>
-    <p class="hint">Urządzenie nieobsługiwane można sparować i pobrać jego diagnostykę — na jej podstawie dopisuje się obsługę. Kanał SUPLA powstanie dopiero wtedy, bo kanału nie da się później zmienić ani usunąć.</p>
+    <p class="hint" id="candidates-hint-group" hidden>Światła należące do grupy są obsługiwane i sterowane kanałem grupy. Tutaj można nimi sterować pojedynczo; „Dodaj kanał” jest opcjonalne i tworzy dodatkowy, osobny kanał SUPLA.</p>
+    <p class="hint" id="candidates-hint-unsupported" hidden>Urządzenie nieobsługiwane można sparować i pobrać jego diagnostykę - na jej podstawie dopisuje się obsługę. Kanał SUPLA powstanie dopiero wtedy, bo kanału nie da się później zmienić ani usunąć.</p>
   </section>
   </div>
 
@@ -371,6 +372,9 @@ function renderDevices(state) {
 
 function renderCandidates(state) {
   $("candidates-section").hidden = !state.candidates.length;
+  // Podpowiedzi tylko wtedy, gdy czegoś dotyczą: światło z grupy to nie urządzenie nieobsługiwane.
+  $("candidates-hint-group").hidden = !state.candidates.some((c) => !c.supported && c.manual);
+  $("candidates-hint-unsupported").hidden = !state.candidates.some((c) => !c.supported && !c.manual);
   $("candidates").replaceChildren(...state.candidates.map((c) => {
     const row = el("div", "row");
     row.append(el("div", "chan", "–"));

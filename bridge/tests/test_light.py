@@ -174,3 +174,14 @@ async def test_light_becomes_channel_by_default(tmp_path):
         "expiration_time_sec": 120,
     }
     assert manager.snapshot()["candidates"] == []
+
+
+def test_kajplats_gu10_is_the_same_kind_of_light():
+    # Zrzut prawdziwej KAJPLATS GU10 WS 575lm: te same klastry co E27, więc ten sam typ `light_cct`
+    # (obsługa wynika z klastrów, nie z identyfikatora produktu).
+    from m2s_bridge.manager import endpoint_type
+
+    node = json.loads((FIXTURES / "ikea-kajplats-gu10-ws.json").read_text(encoding="utf-8"))["data"]["node"]
+    assert node["attributes"]["0/40/4"] == 36866
+    assert endpoint_type(node["attributes"], 1) == "light_cct"
+    assert light.mireds_range(node["attributes"], 1) == (153, 454)
