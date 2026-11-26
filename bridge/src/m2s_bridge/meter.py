@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Zjawa.IT - Jarosław Zjawiński <kontakt@zjawa.it>
+# SPDX-License-Identifier: GPL-2.0-or-later
+
 """Licznik energii: klastry Matter ElectricalPowerMeasurement / ElectricalEnergyMeasurement.
 
 Jednostki według specyfikacji Matter (klastry 0x0090 i 0x0091) -> jednostki kanału

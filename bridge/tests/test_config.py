@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Zjawa.IT - Jarosław Zjawiński <kontakt@zjawa.it>
+# SPDX-License-Identifier: GPL-2.0-or-later
+
 import pytest
 
 from m2s_bridge.config import ConfigError, load_config, parse_config

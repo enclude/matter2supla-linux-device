@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Zjawa.IT - Jarosław Zjawiński <kontakt@zjawa.it>
+# SPDX-License-Identifier: GPL-2.0-or-later
+
 """Stan całego łącznika: lista urządzeń, automatyczne kanały, parowanie, dane dla panelu WWW."""
 
 from __future__ import annotations

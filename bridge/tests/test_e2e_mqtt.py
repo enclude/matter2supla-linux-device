@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Zjawa.IT - Jarosław Zjawiński <kontakt@zjawa.it>
+# SPDX-License-Identifier: GPL-2.0-or-later
+
 """Test całego łącznika z prawdziwym brokerem MQTT i fałszywym matter-server.
 
 Wymaga brokera: M2S_TEST_MQTT=host:port (np. `docker run --rm -p 18883:1883 eclipse-mosquitto:2

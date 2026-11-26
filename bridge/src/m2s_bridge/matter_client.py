@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Zjawa.IT - Jarosław Zjawiński <kontakt@zjawa.it>
+# SPDX-License-Identifier: GPL-2.0-or-later
+
 """Cienki klient WebSocket do matter-server (matterjs-server / python-matter-server).
 
 Protokół (docs/websockets_api.md w repozytorium matterjs-server):

@@ -1,4 +1,6 @@
 #!/bin/sh
+# SPDX-FileCopyrightText: 2026 Zjawa.IT - Jarosław Zjawiński <kontakt@zjawa.it>
+# SPDX-License-Identifier: GPL-2.0-or-later
 # Uruchamia supla-device i restartuje go, gdy łącznik zapisze nową konfigurację
 # (np. po automatycznym dopisaniu kanału). Czeka też, aż konfiguracja w ogóle powstanie.
 CONFIG="${SUPLA_CONFIG:-/etc/supla-device/supla-device.yaml}"

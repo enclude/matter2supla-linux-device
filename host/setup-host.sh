@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-FileCopyrightText: 2026 Zjawa.IT - Jarosław Zjawiński <kontakt@zjawa.it>
+# SPDX-License-Identifier: GPL-2.0-or-later
 # Jednorazowe przygotowanie hosta (VM Ubuntu) pod OTBR. Odpowiada skryptowi `setup-host`
 # z openthread/ot-br-posix (etc/docker/border-router): przyjmowanie RA mimo włączonego
 # forwardingu oraz forwarding IPv6/IPv4.

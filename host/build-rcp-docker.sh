@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-FileCopyrightText: 2026 Zjawa.IT - Jarosław Zjawiński <kontakt@zjawa.it>
+# SPDX-License-Identifier: GPL-2.0-or-later
 # Buduje gotowy przykład `ot_rcp` z ESP-IDF dla ESP32-C5 w oficjalnym obrazie Docker —
 # bez instalowania ESP-IDF. Wynik: bootloader.bin, partition-table.bin, esp_ot_rcp.bin.
 # Użycie: ./host/build-rcp-docker.sh [katalog-wyjściowy]     (domyślnie ./rcp-build)

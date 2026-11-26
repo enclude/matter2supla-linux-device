@@ -7,6 +7,8 @@ name = "m2s-bridge"
 version = "0.1.0"
 description = "Łącznik Matter (matter-server, WebSocket) <-> MQTT dla supla-device"
 requires-python = ">=3.11"
+license = "GPL-2.0-or-later"
+authors = [{ name = "Zjawa.IT - Jarosław Zjawiński", email = "kontakt@zjawa.it" }]
 dependencies = [
     "aiohttp>=3.10,<4",
     "aiomqtt>=2.3,<3",

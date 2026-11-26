@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-FileCopyrightText: 2026 Zjawa.IT - Jarosław Zjawiński <kontakt@zjawa.it>
+# SPDX-License-Identifier: GPL-2.0-or-later
 # Uruchamia border router i tworzy sieć Thread, jeśli jeszcze jej nie ma, a potem przekazuje
 # jej dane kontrolerowi Matter. Bezpieczny do wielokrotnego uruchamiania: istniejącej sieci
 # NIGDY nie tworzy od nowa (nowa sieć odcięłaby wszystkie sparowane urządzenia).

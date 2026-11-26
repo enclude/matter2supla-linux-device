@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-FileCopyrightText: 2026 Zjawa.IT - Jarosław Zjawiński <kontakt@zjawa.it>
+# SPDX-License-Identifier: GPL-2.0-or-later
 # Instaluje codzienną kopię zapasową jako timer systemd (domyślnie 03:30, 14 ostatnich kopii).
 # Użycie: sudo ./host/install-backup-timer.sh [daily|weekly] [liczba-kopii]
 set -euo pipefail

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Zjawa.IT - Jarosław Zjawiński <kontakt@zjawa.it>
+# SPDX-License-Identifier: GPL-2.0-or-later
+
 """Odczyt kodu parowania Matter (MT:…) z kodu QR na zdjęciu."""
 
 from __future__ import annotations

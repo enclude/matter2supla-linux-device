@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-FileCopyrightText: 2026 Zjawa.IT - Jarosław Zjawiński <kontakt@zjawa.it>
+# SPDX-License-Identifier: GPL-2.0-or-later
 # Buduje i wgrywa na ESP32-C5 gotowy przykład `ot_rcp` z ESP-IDF (radio Thread, RCP).
 # To niezmieniony firmware Espressifa — w tym repozytorium nie ma własnego kodu dla ESP.
 # UWAGA: erase-flash kasuje dotychczasowy firmware płytki i jego parowania.

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Zjawa.IT - Jarosław Zjawiński <kontakt@zjawa.it>
+# SPDX-License-Identifier: GPL-2.0-or-later
+
 """Przeliczenia dla świateł: Matter (poziom 1–254, miredy) <-> skala SUPLA (0–100).
 
 Temperatura bieli w SUPLA: 0 = ciepła, 100 = zimna. W Matter miredy rosną w stronę ciepłej.

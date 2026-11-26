@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Zjawa.IT - Jarosław Zjawiński <kontakt@zjawa.it>
+# SPDX-License-Identifier: GPL-2.0-or-later
+
 """Zrzut diagnostyczny węzła Matter — materiał do dopisania obsługi nowego typu urządzenia.
 
 Format jest zgodny z komendą `import_test_node` matter-server, więc zrzut można wczytać

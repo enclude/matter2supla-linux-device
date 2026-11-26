@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Zjawa.IT - Jarosław Zjawiński <kontakt@zjawa.it>
+# SPDX-License-Identifier: GPL-2.0-or-later
+
 """Spina łącznik z prawdziwym brokerem MQTT i matter-server; pilnuje ponownych połączeń."""
 
 from __future__ import annotations

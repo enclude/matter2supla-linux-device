@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Zjawa.IT - Jarosław Zjawiński <kontakt@zjawa.it>
+# SPDX-License-Identifier: GPL-2.0-or-later
+
 """Zrzuty ekranu panelu do dokumentacji — panel uruchomiony na przykładowych danych.
 
 Nie łączy się z niczym: prawdziwa aplikacja WWW łącznika dostaje atrapę z gotowym stanem.

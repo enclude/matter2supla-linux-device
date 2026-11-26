@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Zjawa.IT - Jarosław Zjawiński <kontakt@zjawa.it>
+# SPDX-License-Identifier: GPL-2.0-or-later
+
 # supla-device dla Linuksa (SUPLA/supla-device, extras/examples/linux).
 # Domyślnie budowany jest konkretny commit z gałęzi main: wydanie v26.9.2 nie ma jeszcze
 # `expiration_time_sec` dla źródła MQTT, z którego korzysta wygenerowana konfiguracja.

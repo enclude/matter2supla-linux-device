@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-FileCopyrightText: 2026 Zjawa.IT - Jarosław Zjawiński <kontakt@zjawa.it>
+# SPDX-License-Identifier: GPL-2.0-or-later
 # Odtworzenie instalacji z kopii zapasowej — także na innym urządzeniu.
 #
 # Na nowym urządzeniu najpierw: Docker, katalog projektu z repozytorium, ./host/setup-host.sh <interfejs>,

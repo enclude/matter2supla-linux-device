@@ -126,3 +126,11 @@ Spis treści: [docs/README.md](docs/README.md).
 - [matter-js/matterjs-server](https://github.com/matter-js/matterjs-server) — następca `python-matter-server` (ten zakończono na wersji 8.1.2), to samo API WebSocket
 - [SUPLA/supla-device](https://github.com/SUPLA/supla-device) — `extras/examples/linux`
 - ESP-IDF, przykład `examples/openthread/ot_rcp`
+
+## Licencja
+
+Copyright © 2026 Zjawa.IT - Jarosław Zjawiński, <kontakt@zjawa.it>.
+
+Projekt jest wolnym oprogramowaniem na licencji **GNU General Public License w wersji 2 lub (do wyboru) dowolnej późniejszej** (`GPL-2.0-or-later`) — pełny tekst w pliku [LICENSE](LICENSE). W skrócie: wolno używać, kopiować, zmieniać i rozpowszechniać, pod warunkiem zachowania informacji o autorze i licencji oraz udostępniania zmienionych wersji na tej samej licencji, razem z kodem źródłowym. Oprogramowanie jest dostarczane bez jakiejkolwiek gwarancji.
+
+Obraz `matter2supla-supla-device` zawiera [supla-device](https://github.com/SUPLA/supla-device) (AC SOFTWARE SP. Z O.O., `GPL-2.0-or-later`) zbudowany z commita przypiętego w `supla-device/Dockerfile`, z rozszerzeniami z katalogu `supla-device/extensions/`. Pozostałe komponenty (OTBR, matterjs-server, Mosquitto) są używane jako osobne, niezmienione obrazy na własnych licencjach.

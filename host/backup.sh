@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-FileCopyrightText: 2026 Zjawa.IT - Jarosław Zjawiński <kontakt@zjawa.it>
+# SPDX-License-Identifier: GPL-2.0-or-later
 # Kopia zapasowa stanu instalacji: data/ (tożsamość kontrolera Matter, sieć Thread, GUID/AUTHKEY
 # SUPLA), config/ (mapowanie kanałów, konto SUPLA) i .env. Kod projektu nie jest kopiowany —
 # pochodzi z repozytorium.

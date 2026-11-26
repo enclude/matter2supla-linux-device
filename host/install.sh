@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-FileCopyrightText: 2026 Zjawa.IT - Jarosław Zjawiński <kontakt@zjawa.it>
+# SPDX-License-Identifier: GPL-2.0-or-later
 # Instalacja bramki jednym poleceniem. Bezpieczna do ponownego uruchomienia: niczego, co już
 # istnieje (plik .env, sieć Thread, dane parowań), nie nadpisuje.
 #
