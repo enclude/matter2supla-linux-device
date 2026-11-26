@@ -304,6 +304,13 @@ function controls(dev) {
     button.onclick = () => act(() => post(`/api/devices/${encodeURIComponent(dev.name)}/command`, { command }));
     actions.append(button);
   }
+  if (dev.can_identify) {
+    // Pomaga znaleźć konkretne urządzenie: żarówka pulsuje, gniazdko miga diodą.
+    const find = el("button", null, "Znajdź");
+    find.title = dev.type === "light_group" ? "Wszystkie światła grupy dadzą o sobie znać przez 15 s" : "Urządzenie da o sobie znać przez 15 s (żarówka pulsuje, gniazdko miga diodą)";
+    find.onclick = () => act(() => post(`/api/devices/${encodeURIComponent(dev.name)}/identify`, {}));
+    actions.append(find);
+  }
   nodes.push(actions);
   if (dev.type === "light_cct" || dev.type === "light_group") {
     const box = el("div", "sliders");

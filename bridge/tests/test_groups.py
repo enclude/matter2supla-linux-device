@@ -258,3 +258,17 @@ async def test_group_accepts_only_its_own_kind_of_device(paths):
     await manager._commission_task
     assert "nie trafiło do grupy" in manager.commission_state["message"]
     assert manager._find_group(group.name).members == ((3, 1),)
+
+
+async def test_identify_single_light_and_whole_group():
+    core = await make_core(node(3), node(4), {**node(5), "available": False})
+    group = Device(**{**GROUP.__dict__, "members": ((3, 1), (4, 1), (5, 1))})
+    single = Device(name="lampa", node_id=3, endpoint=1, type="light_cct", supla_channel=0)
+    assert core.can_identify(single) and core.can_identify(group)
+    assert await core.identify(single)
+    assert core.sender.sent == [(3, "Identify", {"identifyTime": 15})]
+    core.sender.sent.clear()
+    assert await core.identify(group)
+    assert sorted(n for n, command, _ in core.sender.sent if command == "Identify") == [3, 4]
+    meter = Device(name="licznik", node_id=3, endpoint=2, type="meter", supla_channel=1, measurements=("power",))
+    assert not core.can_identify(meter)

@@ -467,6 +467,13 @@ class Manager:
         if not await self.core.set_light(dev, brightness, temperature):
             raise ManagerError("komenda nie została wykonana — urządzenie niedostępne lub błąd Matter")
 
+    async def identify(self, name: str) -> None:
+        dev = self._find(name)
+        if not self.core.can_identify(dev):
+            raise ManagerError("to urządzenie nie obsługuje identyfikacji albo jest niedostępne")
+        if not await self.core.identify(dev):
+            raise ManagerError("komenda nie została wykonana — urządzenie niedostępne lub błąd Matter")
+
     async def set_caption(self, name: str, caption: str) -> None:
         async with self._change_lock:
             target = self._find(name)
@@ -650,6 +657,7 @@ class Manager:
             "supla_channel": dev.supla_channel,
             "state": {1: "on", 0: "off"}.get(state, "unavailable"),
             # nazwa licznika wynika z nazwy gniazdka i nie jest edytowalna
+            "can_identify": self.core.can_identify(dev),
             "caption_linked": dev.type == "meter"
             and any(d.type == "onoff" and d.node_id == dev.node_id for d in self.config.devices),
         }

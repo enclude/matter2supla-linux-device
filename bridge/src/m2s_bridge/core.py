@@ -38,6 +38,8 @@ log = logging.getLogger(__name__)
 ONOFF_CLUSTER = 0x0006
 ONOFF_ATTRIBUTE = 0x0000
 STATE_INVALID = -1
+IDENTIFY_CLUSTER = 0x0003
+IDENTIFY_SEC = 15  # tyle urządzenie daje o sobie znać (żarówka pulsuje, gniazdko miga diodą)
 LIGHT_TYPES = ("light_cct", GROUP_TYPE)
 
 _COMMANDS = {
@@ -302,6 +304,20 @@ class BridgeCore:
                 command = "Off" if self.state_of(dev) == 1 else "On"
             return await self._fan_out(dev, lambda member: self._invoke(member, ONOFF_CLUSTER, command))
         return await self._invoke(dev, ONOFF_CLUSTER, command)
+
+    def can_identify(self, dev: Device) -> bool:
+        """Czy urządzenie (albo któreś światło grupy) ma klaster Identify."""
+        if dev.type == GROUP_TYPE:
+            return any(self.can_identify(member) for member in self.members_of(dev))
+        attributes = self._attributes(dev) or {}
+        prefix = f"{dev.endpoint}/{IDENTIFY_CLUSTER}/"
+        return any(path.startswith(prefix) for path in attributes)
+
+    async def identify(self, dev: Device, seconds: int = IDENTIFY_SEC) -> bool:
+        """Każe urządzeniu dać o sobie znać; dla grupy - wszystkim jej światłom naraz."""
+        if dev.type == GROUP_TYPE:
+            return await self._fan_out(dev, lambda member: self.identify(member, seconds))
+        return await self._invoke(dev, IDENTIFY_CLUSTER, "Identify", {"identifyTime": seconds})
 
     async def _fan_out(self, group: Device, action: Callable[[Device], Awaitable[bool]]) -> bool:
         """Wykonuje komendę na wszystkich dostępnych światłach grupy; True, gdy udało się choć jedno."""

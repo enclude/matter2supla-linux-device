@@ -281,6 +281,11 @@ def create_app(
         await manager.device_command(request.match_info["name"], str(data.get("command", "")))
         return web.json_response({"ok": True})
 
+    async def device_identify(request: web.Request) -> web.Response:
+        await body(request)
+        await manager.identify(request.match_info["name"])
+        return web.json_response({"ok": True})
+
     async def device_light(request: web.Request) -> web.Response:
         data = await body(request)
 
@@ -359,6 +364,7 @@ def create_app(
             web.post("/api/groups/{name}/members", group_members),
             web.post("/api/devices/{name}/command", device_command),
             web.post("/api/devices/{name}/caption", device_caption),
+            web.post("/api/devices/{name}/identify", device_identify),
             web.post("/api/devices/{name}/light", device_light),
         ]
     )
