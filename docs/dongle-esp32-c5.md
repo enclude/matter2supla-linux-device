@@ -24,7 +24,7 @@ Strona **<https://matter2supla.zjawa.tech>** wgrywa gotowy firmware jednym klikn
 
 Strona sama rozpoznaje układ. Firmware to ten sam niezmieniony `ot_rcp` z ESP-IDF v5.5, budowany dla ESP32-C5, ESP32-C6 i ESP32-H2, w wariancie dla mostka USB-UART (UART0, 460800 bodów) i dla wbudowanego portu USB układu. Wszystko dzieje się w przeglądarce; strona niczego nie wysyła na serwer.
 
-Stan sprawdzenia: strona działa i udostępnia firmware, a obraz dla ESP32-C5 ma poprawny nagłówek; **samo wgrywanie przez stronę nie było jeszcze wykonane na płytce**. Na sprzęcie sprawdzony jest ten sam firmware (ESP32-C5, wariant UART) wgrany esptoolem - opis niżej. ESP32-C6, ESP32-H2 i wariant dla wbudowanego portu USB nie były sprawdzane w bramce; przy wbudowanym porcie USB dongle zgłasza się na hoście jako `/dev/ttyACM0`, a nie `/dev/ttyUSB0`.
+Stan sprawdzenia: strona działa i udostępnia firmware, a obraz dla ESP32-C5 ma poprawny nagłówek; wgrywanie przez stronę wykonano na płytce ESP32-C5 (wariant UART): zakończyło się powodzeniem, a po restarcie płytka startuje z wgranego firmware (log ROM kończy się na `entry …`, potem cisza, bo `ot_rcp` nie wypisuje nic na UART). Praca tak wgranej płytki w bramce (odpowiedź `rcp version` w OTBR) nie była jeszcze sprawdzana. Na sprzęcie sprawdzony jest ten sam firmware (ESP32-C5, wariant UART) wgrany esptoolem - opis niżej. ESP32-C6, ESP32-H2 i wariant dla wbudowanego portu USB nie były sprawdzane w bramce; przy wbudowanym porcie USB dongle zgłasza się na hoście jako `/dev/ttyACM0`, a nie `/dev/ttyUSB0`.
 
 Kod strony i sposób jej uruchomienia u siebie: [`webflasher/`](../webflasher/README.md).
 

@@ -8,7 +8,7 @@ Statyczna strona z przyciskiem „Wgraj firmware”: przeglądarka (Chrome lub E
 - [ESP Web Tools](https://github.com/esphome/esp-web-tools) w przypiętej wersji, pobierane z rejestru npm ze sprawdzeniem sumy kontrolnej - strona nie ładuje niczego z zewnętrznych serwerów.
 - nginx ze stroną z katalogu `site/`.
 
-Na sprzęcie sprawdzony jest tylko wariant UART dla ESP32-C5 (ten sam, którego używa bramka).
+Na sprzęcie sprawdzony jest tylko wariant UART dla ESP32-C5 (ten sam, którego używa bramka). Wgranie tego wariantu przez stronę wykonano na płytce z powodzeniem; warianty C6, H2 i USB Serial/JTAG są tylko zbudowane.
 
 ## Uruchomienie
 
