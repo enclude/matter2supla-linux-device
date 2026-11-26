@@ -56,7 +56,7 @@ Gdy kontroler zgłosi nowy węzeł, łącznik szuka endpointów z klastrem OnOff
 - OnOff bez LevelControl → typ `onoff`, kanał SUPLA `CustomRelay`; przy `auto_add: true` dopisywany od razu z kolejnym numerem;
 - OnOff + LevelControl + temperatura bieli → typ `light_cct`, kanał SUPLA `MatterLight` (ściemniacz CCT, własne rozszerzenie `supla-device`); przy `lights_as_channels: false` bez kanału, sterowanie tylko z panelu;
 - inne światła (np. sam ściemniacz bez regulacji bieli) → bez kanału, jeszcze nieobsługiwane;
-- endpoint z pomiarem mocy lub energii → typ `meter`, kanał SUPLA `MatterMeter` (jednofazowy licznik energii, własne rozszerzenie `supla-device`); w panelu stoi pod swoim gniazdkiem, a jego nazwa wynika z nazwy gniazdka;
+- endpoint z pomiarem mocy lub energii → typ `meter`, kanał SUPLA `MatterMeter` (jednofazowy licznik energii, własne rozszerzenie `supla-device`); w panelu stoi pod swoim gniazdkiem ([zrzut](img/panel-kanaly.png)), a jego nazwa wynika z nazwy gniazdka;
 - węzły bez OnOff (czujniki itp.) → lista „bez kanału”, tylko diagnostyka.
 
 Po dopisaniu łącznik zapisuje `config/devices.yaml` i generuje `config/supla/supla-device.yaml`. Kontener `supla` wykrywa zmianę pliku (sprawdza co 2 s) i restartuje `supla-device`.

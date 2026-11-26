@@ -11,7 +11,7 @@ docker exec otbr ot-ctl state                   # oczekiwane: leader
 docker compose run --rm bridge nodes            # kontroler: dataset, Bluetooth, sparowane węzły
 ```
 
-W panelu znaczniki „MQTT” i „Matter” w nagłówku pokazują, czy łącznik ma połączenie z brokerem i kontrolerem.
+W panelu znaczniki „MQTT” i „Matter” w nagłówku ([zrzut](img/panel.png)) pokazują, czy łącznik ma połączenie z brokerem i kontrolerem.
 
 ## Border router nie widzi dongla: `spinel_driver … Init() Failure`
 

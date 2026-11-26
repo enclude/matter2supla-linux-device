@@ -21,6 +21,22 @@ Przegląd projektu, wymagania i stan prac: [../README.md](../README.md).
 
 - [Rozwój i testy](rozwoj.md) — testy, zrzuty diagnostyczne jako węzły testowe, budowa obrazów.
 
+## Zrzuty ekranu panelu
+
+Wykonane na przykładowych danych skryptem [`img/make_screenshots.py`](img/make_screenshots.py); opis sekcji w [panel-www.md](panel-www.md).
+
+| Widok | Plik |
+| --- | --- |
+| Cały panel (komputer) | [img/panel.png](img/panel.png) |
+| Cały panel (telefon) | [img/panel-telefon.png](img/panel-telefon.png) |
+| Logowanie | [img/panel-logowanie.png](img/panel-logowanie.png) |
+| Kanały SUPLA | [img/panel-kanaly.png](img/panel-kanaly.png) |
+| Urządzenia Matter bez kanału | [img/panel-bez-kanalu.png](img/panel-bez-kanalu.png) |
+| Konto SUPLA | [img/panel-konto-supla.png](img/panel-konto-supla.png) |
+| Parowanie urządzenia | [img/panel-parowanie.png](img/panel-parowanie.png) |
+| Parowanie w toku | [img/panel-parowanie-trwa.png](img/panel-parowanie-trwa.png) |
+| Kopie zapasowe | [img/panel-kopie.png](img/panel-kopie.png) |
+
 ## Konwencje w tej dokumentacji
 
 - Polecenia uruchamia się w katalogu projektu na hoście (tam, gdzie leży `docker-compose.yml`), o ile nie napisano inaczej.

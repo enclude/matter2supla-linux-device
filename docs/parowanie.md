@@ -9,7 +9,7 @@ Są dwie drogi. Sprawdzona jest pierwsza.
 
 ## Przed pierwszym parowaniem
 
-Sprawdź w panelu albo poleceniem:
+Sprawdź w panelu (znaczniki w nagłówku, [zrzut](img/panel.png)) albo poleceniem:
 
 ```bash
 docker compose run --rm bridge nodes
@@ -37,7 +37,7 @@ Dla innych urządzeń sposób wejścia w tryb parowania i resetu podaje instrukc
 
 ![Parowanie w toku (przykładowe dane)](img/panel-parowanie-trwa.png)
 
-1. Otwórz panel i przejdź do sekcji „Parowanie urządzenia”.
+1. Otwórz panel i przejdź do sekcji „Parowanie urządzenia” ([zrzut](img/panel-parowanie.png)).
 2. Podaj kod: wpisz `MT:…` / kod numeryczny albo użyj „Zrób zdjęcie kodu QR” (telefon; panel musi być dostępny z LAN — [panel-www.md](panel-www.md#z-sieci-lan--z-hasłem)). Kod QR jest na naklejce urządzenia.
 3. Pole „Urządzenie jest już w sieci…” zostaw **odznaczone** (parowanie przez Bluetooth).
 4. „Sparuj”. Parowanie trwa do kilku minut (limit: 5 minut); wynik pojawi się pod formularzem.
