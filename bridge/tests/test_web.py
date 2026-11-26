@@ -381,6 +381,12 @@ async def test_manual_backup_request(tmp_path):
     manual, scheduled = data["backups"]
     assert manual["manual"] is True and manual["expires"] == manual["time"] + 3 * 86400
     assert "manual" not in scheduled
+    # kolejność z nazwy pliku, nie z czasu zapisu: dwie kopie zapisane w tej samej sekundzie
+    (backups / "m2s-manual-20261126-205900.tar.gz").write_bytes(b"x")
+    os.utime(backups / "m2s-manual-20261126-205900.tar.gz", (manual["time"], manual["time"]))
+    names = [b["name"] for b in (await (await client.get("/api/state")).json())["backups"]]
+    assert names == sorted(names, key=lambda n: n.split("-", 2)[2], reverse=True) and names[0].endswith("210000.tar.gz")
+    (backups / "m2s-manual-20261126-205900.tar.gz").unlink()
     assert (await client.get("/api/backups/m2s-manual-20261126-210000.tar.gz")).status == 200
     assert (await client.post("/api/backups", json={})).status == 400  # dopiero co była kopia
 

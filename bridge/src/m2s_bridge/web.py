@@ -148,7 +148,9 @@ def list_backups(directory: Path | None) -> list[dict[str, Any]]:
                 item["manual"] = True
                 item["expires"] = int(stat.st_mtime) + MANUAL_BACKUP_DAYS * 86400
             items.append(item)
-    return sorted(items, key=lambda item: item["time"], reverse=True)
+    # Najnowsze na górze według znacznika czasu z nazwy (ręczne i z harmonogramu razem). Nie według
+    # czasu pliku: kopie powstałe w tej samej sekundzie nie miałyby wtedy ustalonej kolejności.
+    return sorted(items, key=lambda item: item["name"].split("-", 2)[2], reverse=True)
 
 
 def backup_request_state(config_dir: Path | None) -> dict[str, Any]:
