@@ -205,3 +205,28 @@ async def test_backups_list_and_download(tmp_path):
             assert (await client.get(f"/api/backups/{bad}", headers=auth)).status == 404
     finally:
         await client.close()
+
+
+async def test_light_endpoint(tmp_path):
+    from test_light import bulb_node
+
+    manager = Manager(
+        parse_config({"lights_as_channels": False}), tmp_path / "devices.yaml", tmp_path / "supla.yaml", "s", "m"
+    )
+    manager.mqtt = FakeMqtt()
+    manager.matter_client = FakeClient()
+    await manager.core.matter_connected(manager.matter_client, [bulb_node()])
+    await manager.auto_add()
+    client = TestClient(TestServer(create_app(manager)))
+    await client.start_server()
+    try:
+        name = (await (await client.get("/api/state")).json())["candidates"][0]["control"]["name"]
+        r = await client.post(f"/api/devices/{name}/light", json={"temperature": 100})
+        assert r.status == 200
+        assert manager.matter_client.calls[-1][1][2:4] == (768, "MoveToColorTemperature")
+        r = await client.post(f"/api/devices/{name}/light", json={"brightness": "jasno"})
+        assert r.status == 400
+        r = await client.post(f"/api/devices/{name}/command", json={"command": "off"})
+        assert r.status == 200 and manager.matter_client.calls[-1][1][2:4] == (6, "Off")
+    finally:
+        await client.close()

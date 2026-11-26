@@ -9,8 +9,13 @@ from typing import Any
 
 import yaml
 
+from .meter import MEASUREMENTS
+
 # Typy urządzeń obsługiwane przez łącznik. Kolejne (jasność, czujniki) dojdą tutaj.
-DEVICE_TYPES = ("onoff",)
+DEVICE_TYPES = ("onoff", "light_cct", "meter")
+
+# Urządzenie sterowane tylko z panelu i przez MQTT, bez kanału SUPLA (nie trafia do pliku).
+NO_CHANNEL = -1
 
 MAX_SUPLA_CHANNEL = 127  # zakres `channel_number` w supla-device
 _NAME_RE = re.compile(r"^[A-Za-z0-9_-]+$")
@@ -50,6 +55,9 @@ class Device:
     type: str
     supla_channel: int
     caption: str | None = None
+    # Tylko typ `meter`: pomiary podawane przez urządzenie (patrz meter.py). Ustalane przy
+    # dodaniu kanału; każdy z nich musi być w komunikacie stanu, inaczej SUPLA odrzuca odczyt.
+    measurements: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -63,6 +71,9 @@ class Config:
     state_expiration_sec: int = 120
     # Nowe węzły Matter z obsługiwanym typem są same dopisywane jako kolejne kanały SUPLA.
     auto_add: bool = True
+    # Światła z regulacją bieli jako kanały SUPLA typu ściemniacz CCT (rozszerzenie MatterLight
+    # w supla-device, protokół SUPLA 28). Po wyłączeniu światłem steruje się tylko z panelu.
+    lights_as_channels: bool = True
     web: WebConfig = field(default_factory=WebConfig)
     devices: tuple[Device, ...] = ()
 
@@ -74,6 +85,19 @@ def _require_int(value: Any, what: str, minimum: int = 0, maximum: int | None = 
         zakres = f"{minimum}..{maximum}" if maximum is not None else f">= {minimum}"
         raise ConfigError(f"{what}: wartość {value} poza zakresem {zakres}")
     return value
+
+
+def _measurements(item: dict[str, Any], dev_type: str, where: str) -> tuple[str, ...]:
+    value = item.get("measurements")
+    if dev_type != "meter":
+        if value:
+            raise ConfigError(f"{where}.measurements: pole dotyczy tylko typu `meter`")
+        return ()
+    if not isinstance(value, list) or not value or any(m not in MEASUREMENTS for m in value):
+        raise ConfigError(
+            f"{where}.measurements: wymagana niepusta lista spośród: {', '.join(MEASUREMENTS)}"
+        )
+    return tuple(m for m in MEASUREMENTS if m in value)
 
 
 def _section(raw: dict[str, Any], key: str) -> dict[str, Any]:
@@ -115,6 +139,9 @@ def parse_config(raw: Any) -> Config:
     auto_add = raw.get("auto_add", True)
     if not isinstance(auto_add, bool):
         raise ConfigError("auto_add musi być wartością true/false")
+    lights_as_channels = raw.get("lights_as_channels", True)
+    if not isinstance(lights_as_channels, bool):
+        raise ConfigError("lights_as_channels musi być wartością true/false")
     web_raw = _section(raw, "web")
     web_enabled = web_raw.get("enabled", True)
     if not isinstance(web_enabled, bool):
@@ -156,6 +183,7 @@ def parse_config(raw: Any) -> Config:
                     item["supla_channel"], f"{where}.supla_channel", 0, MAX_SUPLA_CHANNEL
                 ),
                 caption=None if caption is None else str(caption),
+                measurements=_measurements(item, dev_type, where),
             )
         )
 
@@ -166,6 +194,7 @@ def parse_config(raw: Any) -> Config:
         heartbeat_sec=heartbeat,
         state_expiration_sec=expiration,
         auto_add=auto_add,
+        lights_as_channels=lights_as_channels,
         web=web,
         devices=tuple(devices),
     )
@@ -189,12 +218,16 @@ def config_to_raw(config: Config) -> dict[str, Any]:
         mqtt["password"] = config.mqtt.password
     devices = []
     for dev in config.devices:
+        if dev.supla_channel == NO_CHANNEL:
+            continue
         item: dict[str, Any] = {"name": dev.name}
         if dev.caption:
             item["caption"] = dev.caption
         item.update(
             node_id=dev.node_id, endpoint=dev.endpoint, type=dev.type, supla_channel=dev.supla_channel
         )
+        if dev.measurements:
+            item["measurements"] = list(dev.measurements)
         devices.append(item)
     return {
         "matter": {"url": config.matter.url},
@@ -202,6 +235,7 @@ def config_to_raw(config: Config) -> dict[str, Any]:
         "heartbeat_sec": config.heartbeat_sec,
         "state_expiration_sec": config.state_expiration_sec,
         "auto_add": config.auto_add,
+        "lights_as_channels": config.lights_as_channels,
         "web": {"enabled": config.web.enabled, "host": config.web.host, "port": config.web.port},
         "devices": devices,
     }
@@ -226,21 +260,22 @@ def save_config(config: Config, path: str | Path) -> None:
 def _check_unique(devices: list[Device]) -> None:
     seen_names: set[str] = set()
     seen_channels: dict[int, str] = {}
-    seen_targets: dict[tuple[int, int, str], str] = {}
+    seen_targets: dict[tuple[int, int, bool], str] = {}
     for dev in devices:
         if dev.name in seen_names:
             raise ConfigError(f"powtórzona nazwa urządzenia: {dev.name}")
         seen_names.add(dev.name)
-        if dev.supla_channel in seen_channels:
+        if dev.supla_channel != NO_CHANNEL and dev.supla_channel in seen_channels:
             raise ConfigError(
                 f"supla_channel {dev.supla_channel} użyty dwukrotnie "
                 f"({seen_channels[dev.supla_channel]} i {dev.name})"
             )
         seen_channels[dev.supla_channel] = dev.name
-        target = (dev.node_id, dev.endpoint, dev.type)
+        # Licznik może dzielić endpoint z gniazdkiem — to osobny kanał z własnymi tematami.
+        target = (dev.node_id, dev.endpoint, dev.type == "meter")
         if target in seen_targets:
             raise ConfigError(
-                f"węzeł {dev.node_id} endpoint {dev.endpoint} ({dev.type}) zmapowany dwukrotnie "
+                f"węzeł {dev.node_id} endpoint {dev.endpoint} zmapowany dwukrotnie "
                 f"({seen_targets[target]} i {dev.name})"
             )
         seen_targets[target] = dev.name

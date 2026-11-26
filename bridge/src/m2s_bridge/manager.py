@@ -13,7 +13,8 @@ from typing import Any
 
 import aiomqtt
 
-from .config import Config, ConfigError, Device, check_devices, MAX_SUPLA_CHANNEL, save_config
+from . import light, meter
+from .config import MAX_SUPLA_CHANNEL, NO_CHANNEL, Config, ConfigError, Device, check_devices, save_config
 from .core import BridgeCore
 from .diagnostics import build_diagnostics
 from .matter_client import MatterConnectionError, MatterError
@@ -45,6 +46,15 @@ def is_dimmable(attributes: dict[str, Any], endpoint: int) -> bool:
     return any(path.startswith(prefix) for path in attributes)
 
 
+def endpoint_type(attributes: dict[str, Any], endpoint: int) -> str | None:
+    """Typ urządzenia, jakim łącznik umie sterować tym endpointem, albo None."""
+    if not is_dimmable(attributes, endpoint):
+        return "onoff"
+    if light.level_path(endpoint) in attributes and light.mireds_path(endpoint) in attributes:
+        return "light_cct"
+    return None
+
+
 class Manager:
     def __init__(
         self,
@@ -71,6 +81,7 @@ class Manager:
         self.commission_state: dict[str, Any] = {"running": False, "message": None, "error": None}
         self._commission_task: asyncio.Task[None] | None = None
         self._change_lock = asyncio.Lock()
+        self._extras: tuple[Device, ...] = ()  # urządzenia bez kanału SUPLA, sterowane z panelu
 
     # --- MQTT ---------------------------------------------------------------
 
@@ -82,8 +93,43 @@ class Manager:
 
     # --- urządzenia ---------------------------------------------------------
 
-    def _mapped(self) -> set[tuple[int, int]]:
-        return {(d.node_id, d.endpoint) for d in self.config.devices}
+    def _mapped(self) -> set[tuple[int, int, bool]]:
+        # trzeci człon: czy to licznik (może dzielić endpoint z gniazdkiem)
+        return {(d.node_id, d.endpoint, d.type == "meter") for d in self.config.devices}
+
+    async def refresh_runtime(self) -> None:
+        """Uzgadnia listę urządzeń łącznika: kanały SUPLA plus światła bez kanału.
+
+        Światło bez kanału też ma swoje tematy MQTT i jest sterowalne z panelu.
+        """
+        taken = {d.name for d in self.config.devices}
+        extras: list[Device] = []
+        for candidate in self.candidates():
+            if candidate["supported"] or candidate.get("type") != "light_cct":
+                continue
+            name = self._new_name(candidate["product"], candidate["node_id"], candidate["endpoint"], taken)
+            taken.add(name)
+            extras.append(
+                Device(
+                    name=name,
+                    node_id=candidate["node_id"],
+                    endpoint=candidate["endpoint"],
+                    type="light_cct",
+                    supla_channel=NO_CHANNEL,
+                    caption=str(candidate["product"] or "") or None,
+                )
+            )
+        if tuple(extras) == self._extras and self.core.devices == self.config.devices + self._extras:
+            return
+        old_topics = set(self.core.set_topics)
+        self._extras = tuple(extras)
+        self.core.set_devices(self.config.devices + self._extras)
+        mqtt = self.mqtt
+        if mqtt is not None:
+            for topic in self.core.set_topics:
+                if topic not in old_topics:
+                    await mqtt.subscribe(topic, qos=1)
+            await self.core.publish_new()
 
     def candidates(self) -> list[dict[str, Any]]:
         """Endpointy węzłów Matter, które nie są jeszcze kanałami SUPLA."""
@@ -98,28 +144,40 @@ class Manager:
                 "product": attrs.get("0/40/3"),
             }
             endpoints = onoff_endpoints(attrs)
-            if not endpoints:
-                if not any(n == node_id for n, _ in mapped):
+            meters = meter.endpoints(attrs)
+            if not endpoints and not meters:
+                if not any(n == node_id for n, _, _ in mapped):
                     result.append(
                         {**base, "endpoint": None, "supported": False, "reason": "typ urządzenia jeszcze nieobsługiwany"}
                     )
                 continue
             for endpoint in endpoints:
-                if (node_id, endpoint) in mapped:
+                if (node_id, endpoint, False) in mapped:
                     continue
-                if is_dimmable(attrs, endpoint):
-                    # Żarówka dodana dziś jako przekaźnik zajęłaby kanał na stałe (typu kanału
-                    # SUPLA nie da się zmienić), więc czeka na obsługę jasności.
+                kind = endpoint_type(attrs, endpoint)
+                entry = {**base, "endpoint": endpoint, "type": kind}
+                if kind == "onoff":
+                    result.append({**entry, "supported": True, "reason": None})
+                elif kind == "light_cct" and self.config.lights_as_channels:
+                    result.append({**entry, "supported": True, "reason": None})
+                elif kind == "light_cct":
                     result.append(
-                        {**base, "endpoint": endpoint, "supported": False, "reason": "ściemniane światło — czeka na obsługę jasności"}
+                        {**entry, "supported": False, "reason": "światło sterowane tylko z panelu (lights_as_channels: false)"}
                     )
                 else:
-                    result.append({**base, "endpoint": endpoint, "supported": True, "reason": None})
+                    result.append({**entry, "supported": False, "reason": "ten rodzaj światła nie jest jeszcze obsługiwany"})
+            # Licznik energii to osobny kanał (zwykle osobny endpoint, bez klastra OnOff).
+            for endpoint in meters:
+                if (node_id, endpoint, True) not in mapped:
+                    result.append({**base, "endpoint": endpoint, "type": "meter", "supported": True, "reason": None})
         return result
 
-    def _new_name(self, product: Any, node_id: int, endpoint: int, taken: set[str]) -> str:
+    def _new_name(self, product: Any, node_id: int, endpoint: int, taken: set[str], kind: str = "") -> str:
         slug = _SLUG.sub("_", str(product or "").lower()).strip("_") or "matter"
-        name = f"{slug}_{node_id}" if endpoint == 1 else f"{slug}_{node_id}_e{endpoint}"
+        if kind == "meter":
+            name = f"{slug}_{node_id}_meter"
+        else:
+            name = f"{slug}_{node_id}" if endpoint == 1 else f"{slug}_{node_id}_e{endpoint}"
         candidate, counter = name, 2
         while candidate in taken:
             candidate = f"{name}_{counter}"
@@ -128,17 +186,26 @@ class Manager:
 
     def _device_for(self, candidate: dict[str, Any], devices: list[Device]) -> Device:
         channel = max((d.supla_channel for d in devices), default=-1) + 1
+        kind = candidate.get("type") or "onoff"
         if channel > MAX_SUPLA_CHANNEL:
             raise ManagerError("wyczerpano numery kanałów SUPLA (0–127)")
         node = self.core.nodes.get(candidate["node_id"], {"attributes": {}})
         label = node["attributes"].get("0/40/5")
+        caption = str(label or candidate["product"] or "")
+        measurements: tuple[str, ...] = ()
+        if kind == "meter":
+            caption = f"{caption} — licznik" if caption else "Licznik energii"
+            measurements = meter.detect(node["attributes"], candidate["endpoint"])
         return Device(
-            name=self._new_name(candidate["product"], candidate["node_id"], candidate["endpoint"], {d.name for d in devices}),
+            name=self._new_name(
+                candidate["product"], candidate["node_id"], candidate["endpoint"], {d.name for d in devices}, kind
+            ),
             node_id=candidate["node_id"],
             endpoint=candidate["endpoint"],
-            type="onoff",
+            type=kind,
             supla_channel=channel,
-            caption=str(label or candidate["product"] or "") or None,
+            caption=caption or None,
+            measurements=measurements,
         )
 
     async def _apply(self, devices: list[Device]) -> None:
@@ -148,27 +215,30 @@ class Manager:
         if self.config_path is not None:
             save_config(new_config, self.config_path)  # najpierw plik: nieudany zapis niczego nie zmienia
         self.config = new_config
+        old_topics = set(self.core.set_topics)
+        self._extras = ()
         self.core.set_devices(self.config.devices)
         mqtt = self.mqtt
         if mqtt is not None:
-            for dev in self.config.devices:
-                topic = set_topic(self.config.mqtt.topic_prefix, dev)
+            for topic in self.core.set_topics:
                 if topic not in old_topics:
                     await mqtt.subscribe(topic, qos=1)
             await self.core.publish_all()
+        await self.refresh_runtime()
         self.regenerate_supla()
 
     async def auto_add(self) -> list[Device]:
         """Dopisuje jako kanały wszystkie obsługiwane, niezmapowane endpointy."""
-        if not self.config.auto_add:
-            return []
-        try:
-            return await self._auto_add()
-        except (ManagerError, ConfigError, OSError) as err:
-            # Nie zatrzymujemy łącznika — istniejące kanały mają działać dalej.
-            self.supla_error = f"Nie udało się dopisać nowego urządzenia: {err}"
-            log.error(self.supla_error)
-            return []
+        added: list[Device] = []
+        if self.config.auto_add:
+            try:
+                added = await self._auto_add()
+            except (ManagerError, ConfigError, OSError) as err:
+                # Nie zatrzymujemy łącznika — istniejące kanały mają działać dalej.
+                self.supla_error = f"Nie udało się dopisać nowego urządzenia: {err}"
+                log.error(self.supla_error)
+        await self.refresh_runtime()
+        return added
 
     async def _auto_add(self) -> list[Device]:
         async with self._change_lock:
@@ -194,7 +264,7 @@ class Manager:
                 if candidate["node_id"] == node_id and candidate["endpoint"] == endpoint:
                     break
             else:
-                raise ManagerError("nie ma takiego wolnego endpointu z klastrem OnOff")
+                raise ManagerError("nie ma takiego wolnego endpointu z obsługiwanym klastrem")
             if not candidate["supported"]:
                 raise ManagerError(f"tego urządzenia nie można jeszcze dodać: {candidate['reason']}")
             devices = list(self.config.devices)
@@ -203,14 +273,23 @@ class Manager:
             return dev
 
     def _find(self, name: str) -> Device:
-        for dev in self.config.devices:
+        for dev in self.core.devices:
             if dev.name == name:
                 return dev
         raise ManagerError(f"nie ma urządzenia {name}")
 
+    async def set_light(self, name: str, brightness: int | None, temperature: int | None) -> None:
+        dev = self._find(name)
+        if dev.type != "light_cct":
+            raise ManagerError("to urządzenie nie jest światłem")
+        if not await self.core.set_light(dev, brightness, temperature):
+            raise ManagerError("komenda nie została wykonana — urządzenie niedostępne lub błąd Matter")
+
     async def set_caption(self, name: str, caption: str) -> None:
         async with self._change_lock:
             target = self._find(name)
+            if target.supla_channel == NO_CHANNEL:
+                raise ManagerError("nazwę można zmienić dopiero, gdy urządzenie ma kanał SUPLA")
             caption = caption.strip()[:100]
             devices = [
                 dataclasses.replace(d, caption=caption or None) if d is target else d
@@ -222,6 +301,8 @@ class Manager:
         mapped = {"on": "On", "off": "Off", "toggle": "Toggle"}.get(command)
         if mapped is None:
             raise ManagerError("nieznana komenda")
+        if self._find(name).type == "meter":
+            raise ManagerError("licznik nie przyjmuje komend")
         if not await self.core.send_command(self._find(name), mapped):
             raise ManagerError("komenda nie została wykonana — urządzenie niedostępne lub błąd Matter")
 
@@ -325,23 +406,38 @@ class Manager:
 
     # --- dane dla panelu ----------------------------------------------------
 
+    def _device_view(self, dev: Device) -> dict[str, Any]:
+        state = self.core.state_of(dev)
+        view: dict[str, Any] = {
+            "name": dev.name,
+            "caption": dev.caption or "",
+            # identyfikatory węzłów jako tekst: mogą przekraczać zakres liczb JavaScript
+            "node_id": str(dev.node_id),
+            "endpoint": dev.endpoint,
+            "type": dev.type,
+            "supla_channel": dev.supla_channel,
+            "state": {1: "on", 0: "off"}.get(state, "unavailable"),
+        }
+        if dev.type == "light_cct":
+            current = self.core.light_state(dev)
+            view["brightness"] = current["brightness"] if current else None
+            view["temperature"] = current["temperature"] if current else None
+        if dev.type == "meter":
+            # jednostki jak w stanie MQTT: V, A, W, kWh, Hz
+            values = self.core.meter_state(dev)
+            view["state"] = "measuring" if values else "unavailable"
+            view["meter"] = values
+        return view
+
     def snapshot(self) -> dict[str, Any]:
         info = self.server_info
-        devices = []
-        for dev in sorted(self.config.devices, key=lambda d: d.supla_channel):
-            state = self.core.state_of(dev)
-            devices.append(
-                {
-                    "name": dev.name,
-                    "caption": dev.caption or "",
-                    # identyfikatory węzłów jako tekst: mogą przekraczać zakres liczb JavaScript
-                    "node_id": str(dev.node_id),
-                    "endpoint": dev.endpoint,
-                    "type": dev.type,
-                    "supla_channel": dev.supla_channel,
-                    "state": {1: "on", 0: "off"}.get(state, "unavailable"),
-                }
-            )
+        devices = [self._device_view(d) for d in sorted(self.config.devices, key=lambda d: d.supla_channel)]
+        extras = {(d.node_id, d.endpoint): self._device_view(d) for d in self._extras}
+        candidates = []
+        for c in self.candidates():
+            item = {**c, "node_id": str(c["node_id"])}
+            item["control"] = extras.get((c["node_id"], c["endpoint"]))
+            candidates.append(item)
         return {
             "mqtt_connected": self.mqtt is not None,
             "matter_connected": self.core.matter is not None,
@@ -355,6 +451,6 @@ class Manager:
             "supla_error": self.supla_error
             or (None if self._supla_server and self._supla_mail else "Nie podano konta SUPLA — wpisz serwer i e-mail w sekcji „Konto SUPLA”."),
             "devices": devices,
-            "candidates": [{**c, "node_id": str(c["node_id"])} for c in self.candidates()],
+            "candidates": candidates,
             "commission": self.commission_state,
         }

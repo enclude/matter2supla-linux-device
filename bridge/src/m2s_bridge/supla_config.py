@@ -20,14 +20,74 @@ LOCK_FILE_NAME = "channels.lock.json"
 STATE_FILES_PATH = "/var/lib/supla-device"
 
 # typ urządzenia w devices.yaml -> typ kanału supla-device
-SUPLA_TYPES = {"onoff": "CustomRelay"}
+SUPLA_TYPES = {"onoff": "CustomRelay", "light_cct": "MatterLight", "meter": "ElectricityMeterParsed"}
+
+# pomiar licznika (klucz w komunikacie stanu) -> parametr fazy w ElectricityMeterParsed.
+# Jednostki po stronie SUPLA: V, A, W, kWh; częstotliwość (Hz) jest parametrem całego kanału.
+METER_PHASE_PARAMETERS = {
+    "voltage": "voltage",
+    "current": "current",
+    "power": "power_active",
+    "energy": "fwd_act_energy",
+}
+
+# Ściemniacz z regulacją bieli (DIMMER_CCT) istnieje od wersji 28 protokołu SUPLA.
+PROTO_WITH_CCT = 28
 
 
 class ChannelConflictError(ValueError):
     """Zmiana złamałaby trwałość kanałów SUPLA."""
 
 
+def _light_channel(config: Config, dev: Device) -> dict[str, Any]:
+    """Kanał rozszerzenia MatterLight (supla-device/extensions/matter_light)."""
+    prefix = config.mqtt.topic_prefix
+    channel: dict[str, Any] = {
+        "type": SUPLA_TYPES[dev.type],
+        "name": dev.name,
+        "channel_number": dev.supla_channel,
+    }
+    if dev.caption:
+        channel["initial_caption"] = dev.caption
+    channel["state_topic"] = state_topic(prefix, dev)
+    channel["set_topic"] = set_topic(prefix, dev)
+    channel["expiration_time_sec"] = config.state_expiration_sec
+    return channel
+
+
+def _meter_channel(config: Config, dev: Device) -> dict[str, Any]:
+    """Licznik jednofazowy: wszystkie pomiary w `phase_1`, stan to jeden dokument JSON.
+
+    supla-device unieważnia odczyt, gdy brakuje któregoś zmapowanego klucza albo stan wygasł,
+    więc mapowane są dokładnie te pomiary, które łącznik publikuje dla tego urządzenia.
+    """
+    if not dev.measurements:
+        raise ValueError(f"{dev.name}: licznik bez listy pomiarów (`measurements`)")
+    source: dict[str, Any] = {"type": "MQTT", "state_topic": state_topic(config.mqtt.topic_prefix, dev)}
+    if config.state_expiration_sec:
+        source["expiration_time_sec"] = config.state_expiration_sec
+    channel: dict[str, Any] = {
+        "type": SUPLA_TYPES[dev.type],
+        "name": dev.name,
+        "channel_number": dev.supla_channel,
+    }
+    if dev.caption:
+        channel["initial_caption"] = dev.caption
+    channel["source"] = source
+    channel["parser"] = {"type": "Json", "refresh_time_ms": 1000}
+    if "frequency" in dev.measurements:
+        channel["frequency"] = "frequency"
+    channel["phase_1"] = [
+        {parameter: key} for key, parameter in METER_PHASE_PARAMETERS.items() if key in dev.measurements
+    ]
+    return channel
+
+
 def _channel(config: Config, dev: Device) -> dict[str, Any]:
+    if dev.type == "light_cct":
+        return _light_channel(config, dev)
+    if dev.type == "meter":
+        return _meter_channel(config, dev)
     prefix = config.mqtt.topic_prefix
     source: dict[str, Any] = {"type": "MQTT", "state_topic": state_topic(prefix, dev)}
     if config.state_expiration_sec:
@@ -47,7 +107,10 @@ def _channel(config: Config, dev: Device) -> dict[str, Any]:
             "turn_off_payload": "OFF",
             "source": source,
             "parser": {"type": "Json", "refresh_time_ms": 1000},
-            "output": {"type": "MQTT", "control_topic": set_topic(prefix, dev), "qos": 1},
+            # supla-device przekazuje `qos` wprost jako flagi biblioteki MQTT-C: 1 oznacza tam
+            # "retain" (z QoS 0), a dopiero 2 daje QoS 1. Zachowane polecenie wracałoby po
+            # restarcie łącznika, więc używamy 2.
+            "output": {"type": "MQTT", "control_topic": set_topic(prefix, dev), "qos": 2},
             "payload": {"type": "Simple"},
         }
     )
@@ -55,7 +118,7 @@ def _channel(config: Config, dev: Device) -> dict[str, Any]:
 
 
 def _ordered(config: Config) -> list[Device]:
-    devices = sorted(config.devices, key=lambda d: d.supla_channel)
+    devices = sorted((d for d in config.devices if d.supla_channel >= 0), key=lambda d: d.supla_channel)
     numbers = [d.supla_channel for d in devices]
     if numbers != list(range(len(devices))):
         raise ChannelConflictError(
@@ -64,7 +127,9 @@ def _ordered(config: Config) -> list[Device]:
     return devices
 
 
-def build_supla_config(config: Config, server: str, mail: str) -> dict[str, Any]:
+def build_supla_config(
+    config: Config, server: str, mail: str, device_name: str = "Matter2Supla"
+) -> dict[str, Any]:
     if not server or not mail:
         raise ValueError("wymagane SUPLA_SERVER i SUPLA_MAIL")
     devices = _ordered(config)
@@ -80,10 +145,13 @@ def build_supla_config(config: Config, server: str, mail: str) -> dict[str, Any]
         mqtt["username"] = config.mqtt.username
     if config.mqtt.password:
         mqtt["password"] = config.mqtt.password
+    supla: dict[str, Any] = {"server": server, "mail": mail}
+    if any(dev.type == "light_cct" for dev in devices):
+        supla["proto"] = PROTO_WITH_CCT
     return {
-        "name": "Matter2Supla",
+        "name": device_name,
         "state_files_path": STATE_FILES_PATH,
-        "supla": {"server": server, "mail": mail},
+        "supla": supla,
         "mqtt": mqtt,
         "channels": [_channel(config, dev) for dev in devices],
     }

@@ -174,6 +174,20 @@ def create_app(
         await manager.device_command(request.match_info["name"], str(data.get("command", "")))
         return web.json_response({"ok": True})
 
+    async def device_light(request: web.Request) -> web.Response:
+        data = await body(request)
+
+        def number(key: str) -> int | None:
+            value = data.get(key)
+            if value is None:
+                return None
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise ValueError(f"{key} musi być liczbą")
+            return int(value)
+
+        await manager.set_light(request.match_info["name"], number("brightness"), number("temperature"))
+        return web.json_response({"ok": True})
+
     async def device_caption(request: web.Request) -> web.Response:
         data = await body(request)
         await manager.set_caption(request.match_info["name"], str(data.get("caption", "")))
@@ -227,6 +241,7 @@ def create_app(
             web.post("/api/devices", add_device),
             web.post("/api/devices/{name}/command", device_command),
             web.post("/api/devices/{name}/caption", device_caption),
+            web.post("/api/devices/{name}/light", device_light),
         ]
     )
     return app

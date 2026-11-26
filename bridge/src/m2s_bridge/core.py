@@ -1,9 +1,17 @@
 """Logika łącznika, niezależna od transportu (testowalna bez sieci).
 
-Matter -> MQTT: stan atrybutu publikowany jako {"state": 1|0|-1} (retained).
-Wartość -1 oznacza „stan nieznany” — supla-device z `offline_on_invalid_state: true`
-przełącza wtedy kanał w offline.
-MQTT -> Matter: ON / OFF / TOGGLE na temacie `set` -> komenda klastra OnOff.
+Gniazdko (`onoff`):
+  stan    `{"state": 1|0|-1}`            (-1 = niedostępne; supla-device przełącza kanał w offline)
+  komenda `ON` / `OFF` / `TOGGLE`
+Światło z regulacją bieli (`light_cct`), format dla rozszerzenia MatterLight w supla-device:
+  stan    `S B T`  — S: 1/0/-1, B: jasność 1–100, T: biel 0 (ciepła) – 100 (zimna)
+  komenda `B T`    — B: 0 = zgaś, 1–100 = jasność; T: 0–100 albo -1 = bez zmiany
+Licznik energii (`meter`), dla kanału ElectricityMeterParsed w supla-device:
+  stan    `{"voltage": V, "current": A, "power": W, "energy": kWh, "frequency": Hz}` — tylko
+          pomiary zapisane dla urządzenia; pusty komunikat = niedostępne (kasuje też stan
+          zachowany w brokerze, więc supla-device nie dostanie starych wartości)
+  komend nie ma — łącznik nie subskrybuje dla licznika żadnego tematu
+Stany są publikowane z flagą retain.
 """
 
 from __future__ import annotations
@@ -13,6 +21,7 @@ import json
 import logging
 from typing import Any, Awaitable, Callable, Protocol
 
+from . import light, meter
 from .config import Config, Device
 from .matter_client import MatterConnectionError, MatterError
 from .topics import set_topic, state_topic
@@ -64,7 +73,8 @@ class BridgeCore:
 
     def set_devices(self, devices: tuple[Device, ...] | list[Device]) -> None:
         self._devices = tuple(devices)
-        self._by_set_topic = {set_topic(self._prefix, d): d for d in self._devices}
+        # Licznik nie przyjmuje komend, więc nie ma tematu `set`.
+        self._by_set_topic = {set_topic(self._prefix, d): d for d in self._devices if d.type != "meter"}
         self._by_node: dict[int, list[Device]] = {}
         for dev in self._devices:
             self._by_node.setdefault(dev.node_id, []).append(dev)
@@ -87,32 +97,74 @@ class BridgeCore:
 
     # --- stan ---------------------------------------------------------------
 
-    def state_of(self, dev: Device) -> int:
+    def _attributes(self, dev: Device) -> dict[str, Any] | None:
         if self._matter is None:
-            return STATE_INVALID
+            return None
         node = self._nodes.get(dev.node_id)
         if node is None or not node["available"]:
+            return None
+        return node["attributes"]
+
+    def state_of(self, dev: Device) -> int:
+        attributes = self._attributes(dev)
+        if attributes is None:
             return STATE_INVALID
-        value = node["attributes"].get(onoff_path(dev.endpoint))
+        value = attributes.get(onoff_path(dev.endpoint))
         if isinstance(value, bool):
             return int(value)
         return STATE_INVALID
+
+    def light_state(self, dev: Device) -> dict[str, int] | None:
+        """Stan światła w skali SUPLA albo None, gdy niedostępne lub niepełne dane."""
+        attributes = self._attributes(dev)
+        state = self.state_of(dev)
+        if attributes is None or state == STATE_INVALID:
+            return None
+        level = attributes.get(light.level_path(dev.endpoint))
+        mireds = attributes.get(light.mireds_path(dev.endpoint))
+        if not isinstance(level, int) or isinstance(level, bool):
+            return None
+        low, high = light.mireds_range(attributes, dev.endpoint)
+        temperature = light.mireds_to_temperature(mireds, low, high) if isinstance(mireds, int) else 50
+        return {"state": state, "brightness": light.level_to_percent(level), "temperature": temperature}
+
+    def meter_state(self, dev: Device) -> dict[str, float] | None:
+        """Pomiary licznika w jednostkach SUPLA albo None, gdy niedostępny lub niepełne dane."""
+        attributes = self._attributes(dev)
+        if attributes is None:
+            return None
+        return meter.values(attributes, dev.endpoint, dev.measurements)
+
+    def state_payload(self, dev: Device) -> str:
+        if dev.type == "meter":
+            current = self.meter_state(dev)
+            return "" if current is None else json.dumps(current)
+        if dev.type == "light_cct":
+            current = self.light_state(dev)
+            if current is None:
+                return "-1 0 0"
+            return f"{current['state']} {current['brightness']} {current['temperature']}"
+        return json.dumps({"state": self.state_of(dev)})
 
     async def _publish_devices(self, devices: list[Device] | tuple[Device, ...], force: bool) -> None:
         async with self._lock:
             for dev in devices:
                 topic = state_topic(self._prefix, dev)
-                payload = json.dumps({"state": self.state_of(dev)})
+                payload = self.state_payload(dev)
                 if not force and self._published.get(topic) == payload:
                     continue
                 await self._publish(topic, payload, True)
                 if self._published.get(topic) != payload:
-                    log.info("%s: %s", dev.name, payload)
+                    log.info("%s: %s", dev.name, payload or "(niedostępne)")
                 self._published[topic] = payload
 
     async def publish_all(self) -> None:
         """Publikuje stan wszystkich urządzeń (także niezmieniony) — start i heartbeat."""
         await self._publish_devices(self._devices, force=True)
+
+    async def publish_new(self) -> None:
+        """Publikuje stany, których jeszcze nie wysłano (np. po dodaniu urządzenia)."""
+        await self._publish_devices(self._devices, force=False)
 
     # --- Matter -> MQTT -----------------------------------------------------
 
@@ -136,6 +188,14 @@ class BridgeCore:
             node = self._nodes.get(dev.node_id)
             if node is None:
                 log.warning("%s: węzeł %d nie istnieje w matter-server", dev.name, dev.node_id)
+            elif dev.type == "meter":
+                if dev.endpoint not in meter.endpoints(node["attributes"]):
+                    log.warning(
+                        "%s: węzeł %d nie ma pomiaru mocy ani energii na endpoincie %d",
+                        dev.name,
+                        dev.node_id,
+                        dev.endpoint,
+                    )
             elif onoff_path(dev.endpoint) not in node["attributes"]:
                 log.warning(
                     "%s: węzeł %d nie ma klastra OnOff na endpoincie %d",
@@ -171,21 +231,68 @@ class BridgeCore:
 
     # --- MQTT -> Matter -----------------------------------------------------
 
-    async def send_command(self, dev: Device, command: str) -> bool:
-        """Wysyła On/Off/Toggle do urządzenia; False, gdy się nie udało."""
+    async def _invoke(self, dev: Device, cluster: int, command: str, payload: dict[str, Any] | None = None) -> bool:
         matter = self._matter
         if matter is None or self.state_of(dev) == STATE_INVALID:
             log.warning("%s: komenda %s odrzucona — urządzenie niedostępne", dev.name, command)
             return False
         try:
-            await matter.device_command(dev.node_id, dev.endpoint, ONOFF_CLUSTER, command)
-            log.info("%s: wysłano %s", dev.name, command)
+            if payload is None:
+                await matter.device_command(dev.node_id, dev.endpoint, cluster, command)
+            else:
+                await matter.device_command(dev.node_id, dev.endpoint, cluster, command, payload)
+            log.info("%s: wysłano %s %s", dev.name, command, payload or "")
             return True
         except (MatterError, MatterConnectionError) as err:
             log.error("%s: komenda %s nie powiodła się: %s", dev.name, command, err)
             # Przypominamy faktyczny stan, żeby SUPLA nie pokazywała niewykonanej zmiany.
             await self._publish_devices([dev], force=True)
             return False
+
+    async def send_command(self, dev: Device, command: str) -> bool:
+        """Wysyła On/Off/Toggle do urządzenia; False, gdy się nie udało."""
+        return await self._invoke(dev, ONOFF_CLUSTER, command)
+
+    async def set_light(self, dev: Device, brightness: int | None, temperature: int | None) -> bool:
+        """Ustawia jasność (0 = zgaś, 1–100) i/lub biel (0–100). Pomija to, co już jest ustawione."""
+        current = self.light_state(dev)
+        if current is None:
+            log.warning("%s: komenda światła odrzucona — urządzenie niedostępne", dev.name)
+            return False
+        ok = True
+        if temperature is not None and not 0 <= temperature <= 100:
+            temperature = None
+        if temperature is not None and temperature != current["temperature"]:
+            low, high = light.mireds_range(self._attributes(dev) or {}, dev.endpoint)
+            ok &= await self._invoke(
+                dev,
+                light.COLOR_CLUSTER,
+                "MoveToColorTemperature",
+                {
+                    "colorTemperatureMireds": light.temperature_to_mireds(temperature, low, high),
+                    "transitionTime": light.TRANSITION,
+                    "optionsMask": light.EXECUTE_IF_OFF,
+                    "optionsOverride": light.EXECUTE_IF_OFF,
+                },
+            )
+        if brightness is not None:
+            brightness = max(0, min(100, brightness))
+            if brightness == 0:
+                if current["state"] == 1:
+                    ok &= await self._invoke(dev, ONOFF_CLUSTER, "Off")
+            elif current["state"] != 1 or brightness != current["brightness"]:
+                ok &= await self._invoke(
+                    dev,
+                    light.LEVEL_CLUSTER,
+                    "MoveToLevelWithOnOff",
+                    {
+                        "level": light.percent_to_level(brightness),
+                        "transitionTime": light.TRANSITION,
+                        "optionsMask": 0,
+                        "optionsOverride": 0,
+                    },
+                )
+        return ok
 
     async def handle_mqtt(self, topic: str, payload: bytes | str | None, retain: bool = False) -> None:
         dev = self._by_set_topic.get(topic)
@@ -199,6 +306,17 @@ class BridgeCore:
             text = payload.decode("utf-8", errors="replace")
         else:
             text = "" if payload is None else str(payload)
+        if dev.type == "light_cct":
+            try:
+                values = [int(part) for part in text.split()]
+            except ValueError:
+                values = []
+            if not 1 <= len(values) <= 2:
+                log.warning("%s: nieznana komenda światła %r", dev.name, text[:40])
+                return
+            temperature = values[1] if len(values) == 2 and values[1] >= 0 else None
+            await self.set_light(dev, values[0], temperature)
+            return
         command = _COMMANDS.get(text.strip().strip('"').upper())
         if command is None:
             log.warning("%s: nieznana komenda %r", dev.name, text[:40])

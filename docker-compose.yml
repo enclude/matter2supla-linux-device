@@ -1,5 +1,13 @@
 # Stos Matter over Thread -> SUPLA. Wszystko w sieci hosta (Matter wymaga IPv6, multicastu i mDNS).
-# Uruchamiać na prawdziwym Linuksie (tu: VM Ubuntu na Proxmox VE), nie w WSL2.
+# Uruchamiać na prawdziwym Linuksie (Raspberry Pi, mini-PC, VM z mostkowaną kartą), nie w WSL2.
+
+# Logi kontenerów z limitem rozmiaru: bez tego rosną bez końca i niepotrzebnie zużywają nośnik
+# (istotne zwłaszcza przy karcie SD).
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "5m"
+    max-file: "2"
 
 services:
   otbr:
@@ -20,6 +28,7 @@ services:
       # REST (8081) i panel WWW (8080) nasłuchują domyślnie tylko na 127.0.0.1 — tak ma zostać.
     volumes:
       - "./data/otbr:/data"
+    logging: *logging
     restart: unless-stopped
 
   matter-server:
@@ -33,6 +42,7 @@ services:
       TZ: "${TZ:-Europe/Warsaw}"
     volumes:
       - "./data/matter:/data"            # dane fabric — sekret, kopia zapasowa! (właściciel: uid 1000)
+    logging: *logging
     restart: unless-stopped
 
   mqtt:
@@ -41,6 +51,7 @@ services:
     network_mode: host
     volumes:
       - "./config/mosquitto:/mosquitto/config:ro"
+    logging: *logging
     restart: unless-stopped
 
   bridge:
@@ -55,6 +66,7 @@ services:
       - "./config:/config"                    # łącznik zapisuje tu devices.yaml i supla/ (uid 1000)
       - "./backups:/backups:ro"               # kopie zapasowe do pobrania z panelu (host/backup.sh)
     depends_on: [mqtt, matter-server]
+    logging: *logging
     restart: unless-stopped
 
   supla:
@@ -65,4 +77,5 @@ services:
       - "./config/supla:/etc/supla-device:ro"
       - "./data/supla:/var/lib/supla-device"   # GUID/AUTHKEY — sekret, kopia zapasowa! (uid 1000)
     depends_on: [mqtt, bridge]
+    logging: *logging
     restart: unless-stopped

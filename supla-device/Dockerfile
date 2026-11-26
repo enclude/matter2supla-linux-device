@@ -12,8 +12,12 @@ RUN git init -q supla-device && cd supla-device \
     && git remote add origin https://github.com/SUPLA/supla-device.git \
     && git fetch -q --depth 1 origin "${SUPLA_DEVICE_REF}" \
     && git checkout -q FETCH_HEAD
+# Własne rozszerzenia (dodatkowe typy kanałów), np. MatterLight — ściemniacz z regulacją bieli.
+COPY extensions /src/m2s-extensions
 WORKDIR /src/supla-device/extras/examples/linux/build
-RUN cmake -DCMAKE_BUILD_TYPE=Release .. && make -j"$(nproc)" \
+RUN cmake -DCMAKE_BUILD_TYPE=Release \
+          -DSUPLA_LINUX_EXTENSION_DIRS=/src/m2s-extensions/matter_light .. \
+    && make -j"$(nproc)" \
     && ./supla-device-linux --version
 
 FROM debian:bookworm-slim

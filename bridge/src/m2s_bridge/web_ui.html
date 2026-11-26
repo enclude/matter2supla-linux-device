@@ -40,7 +40,7 @@
   .title { font-weight: 600; overflow-wrap: anywhere; }
   .meta { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
   .state { font-size: 12px; font-weight: 600; }
-  .state.on { color: var(--on); } .state.off { color: var(--off); } .state.unavailable { color: var(--bad); }
+  .state.on, .state.measuring { color: var(--on); } .state.off { color: var(--off); } .state.unavailable { color: var(--bad); }
   .actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
   a.button { text-decoration: none; display: inline-block; }
   button, a.button { font: inherit; font-size: 13px; padding: 6px 12px; border-radius: 7px; border: 1px solid var(--line); background: transparent; color: var(--ink); cursor: pointer; }
@@ -55,6 +55,9 @@
   .check input { margin-top: 4px; }
   .hint { font-size: 12px; color: var(--muted); margin: 4px 0 0; }
   .empty { color: var(--muted); margin: 0; }
+  .sliders { grid-column: 1 / -1; display: grid; grid-template-columns: 110px 1fr 44px; gap: 6px 10px; align-items: center; font-size: 13px; }
+  .sliders input[type=range] { width: 100%; accent-color: var(--accent); }
+  .sliders output { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
   details { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 12px; }
   summary { cursor: pointer; font-weight: 600; font-size: 13px; }
   details > div { margin-top: 12px; }
@@ -174,7 +177,14 @@ function renderBackups(state) {
 
 const $ = (id) => document.getElementById(id);
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
-const STATE_LABEL = { on: "włączone", off: "wyłączone", unavailable: "niedostępne" };
+const STATE_LABEL = { on: "włączone", off: "wyłączone", measuring: "pomiar", unavailable: "niedostępne" };
+const METER_FIELDS = [["power", "moc", "W", 1], ["voltage", "napięcie", "V", 1], ["current", "prąd", "A", 3], ["energy", "energia", "kWh", 3], ["frequency", "częstotliwość", "Hz", 2]];
+
+function meterText(values) {
+  // Bieżące wartości licznika, np. „moc 12,3 W · napięcie 230,0 V · energia 1,234 kWh”.
+  return METER_FIELDS.filter(([key]) => values[key] != null)
+    .map(([key, label, unit, digits]) => `${label} ${values[key].toFixed(digits).replace(".", ",")} ${unit}`).join(" · ");
+}
 let busy = false;
 let suplaDirty = false;
 
@@ -198,6 +208,41 @@ function diagLink(nodeId) {
   return link;
 }
 
+const sliderHold = {};  // nazwa urządzenia -> czas ostatniego ruchu suwakiem (nie nadpisujemy w trakcie)
+
+function controls(dev) {
+  // Przyciski włącz/wyłącz oraz, dla światła, suwaki jasności i bieli.
+  const nodes = [];
+  const actions = el("div", "actions");
+  if (dev.type === "meter") return [actions];  // licznik nie przyjmuje komend
+  for (const [command, label] of [["on", "Włącz"], ["off", "Wyłącz"]]) {
+    const button = el("button", null, label);
+    button.disabled = dev.state === "unavailable" || dev.state === command;
+    button.onclick = () => act(() => post(`/api/devices/${encodeURIComponent(dev.name)}/command`, { command }));
+    actions.append(button);
+  }
+  nodes.push(actions);
+  if (dev.type === "light_cct") {
+    const box = el("div", "sliders");
+    const held = Date.now() - (sliderHold[dev.name] || 0) < 4000;
+    for (const [key, label, min, unit] of [["brightness", "Jasność", 1, "%"], ["temperature", "Biel (ciepła–zimna)", 0, ""]]) {
+      const id = `sl-${dev.name}-${key}`;
+      const previous = held ? document.getElementById(id) : null;
+      const input = el("input");
+      input.type = "range"; input.min = min; input.max = 100; input.id = id;
+      input.value = previous ? previous.value : (dev[key] ?? min);
+      input.disabled = dev.state === "unavailable";
+      const out = el("output", null, input.value + unit);
+      input.oninput = () => { out.textContent = input.value + unit; sliderHold[dev.name] = Date.now(); };
+      input.onchange = () => { sliderHold[dev.name] = Date.now(); post(`/api/devices/${encodeURIComponent(dev.name)}/light`, { [key]: Number(input.value) }).catch((err) => alert(err.message)); };
+      const lab = el("label", null, label); lab.htmlFor = id; lab.style.margin = "0"; lab.style.fontWeight = "400";
+      box.append(lab, input, out);
+    }
+    nodes.push(box);
+  }
+  return nodes;
+}
+
 function renderDevices(state) {
   const box = $("devices");
   if (!state.devices.length) {
@@ -214,13 +259,8 @@ function renderDevices(state) {
     info.append(el("div", "title", dev.caption || dev.name));
     info.append(el("div", "meta", `${dev.name} · węzeł ${dev.node_id}, endpoint ${dev.endpoint}`));
     info.append(el("div", "state " + dev.state, STATE_LABEL[dev.state]));
-    const actions = el("div", "actions");
-    for (const [command, label] of [["on", "Włącz"], ["off", "Wyłącz"]]) {
-      const button = el("button", null, label);
-      button.disabled = dev.state === "unavailable" || dev.state === command;
-      button.onclick = () => act(() => post(`/api/devices/${encodeURIComponent(dev.name)}/command`, { command }));
-      actions.append(button);
-    }
+    if (dev.meter) info.append(el("div", "meta", meterText(dev.meter)));
+    const [actions, sliders] = controls(dev);
     const rename = el("button", null, "Nazwa");
     rename.onclick = () => {
       const caption = prompt("Nazwa kanału (SUPLA przyjmuje ją tylko przy pierwszej rejestracji kanału):", dev.caption);
@@ -228,6 +268,7 @@ function renderDevices(state) {
     };
     actions.append(rename, diagLink(dev.node_id));
     row.append(chan, info, actions);
+    if (sliders) row.append(sliders);
     return row;
   }));
 }
@@ -241,7 +282,9 @@ function renderCandidates(state) {
     info.append(el("div", "title", c.product || "Urządzenie Matter"));
     info.append(el("div", "meta", `${c.vendor || "?"} · węzeł ${c.node_id}` + (c.endpoint != null ? `, endpoint ${c.endpoint}` : "")));
     if (c.reason) info.append(el("div", "meta", c.reason));
-    const actions = el("div", "actions");
+    const [controlActions, sliders] = c.control ? controls(c.control) : [null, null];
+    const actions = controlActions || el("div", "actions");
+    if (c.control) info.append(el("div", "state " + c.control.state, STATE_LABEL[c.control.state]));
     if (c.supported) {
       const add = el("button", "primary", "Dodaj kanał");
       add.onclick = () => {
@@ -252,6 +295,7 @@ function renderCandidates(state) {
     }
     actions.append(diagLink(c.node_id));
     row.append(info, actions);
+    if (sliders) row.append(sliders);
     return row;
   }));
 }

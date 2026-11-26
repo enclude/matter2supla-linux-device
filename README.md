@@ -1,233 +1,147 @@
 # matter2supla-linux-device
 
-Most **Matter over Thread → SUPLA** na Linuksie. Urządzenia Matter (na początek gniazdko IKEA GRILLPLATS) są widoczne w SUPLA Cloud jako kanały jednego wirtualnego urządzenia SUPLA, ze sterowaniem w obie strony.
+Most **Matter over Thread → SUPLA** na Linuksie. Urządzenia Matter (na początek gniazdko IKEA GRILLPLATS) są widoczne w SUPLA Cloud jako kanały jednego wirtualnego urządzenia SUPLA „Matter2Supla”, ze sterowaniem w obie strony.
 
 ```text
 GRILLPLATS / KAJPLATS / czujniki
    │ Matter over Thread (802.15.4)
-ESP32-C5 (firmware ot_rcp) ──USB── Proxmox VE ──passthrough── VM Ubuntu
-                                                               ├─ otbr           OpenThread Border Router
-                                                               ├─ matter-server  kontroler Matter (matterjs-server, WebSocket)
-                                                               ├─ bridge         łącznik Matter ⇄ MQTT (ten projekt)
-                                                               ├─ mqtt           Mosquitto
-                                                               └─ supla          supla-device dla Linuksa ⇄ SUPLA Cloud
+ESP32-C5 (firmware ot_rcp) ──USB── host Linux (Raspberry Pi)
+                                    ├─ otbr           OpenThread Border Router
+                                    ├─ matter-server  kontroler Matter (matterjs-server, WebSocket)
+                                    ├─ bridge         łącznik Matter ⇄ MQTT + panel WWW (ten projekt)
+                                    ├─ mqtt           Mosquitto
+                                    └─ supla          supla-device dla Linuksa ⇄ SUPLA Cloud
 ```
 
-Własnym kodem jest tylko `bridge/` (Python) i konfiguracja. ESP32-C5 dostaje **niezmieniony** przykład `ot_rcp` z ESP-IDF — w repozytorium nie ma firmware dla ESP.
-
-## Stan projektu
-
-| Element | Stan |
-| --- | --- |
-| `bridge` — OnOff (stan, sterowanie, dostępność) | napisany i przetestowany bez sprzętu (szczegóły niżej) |
-| obrazy Docker `bridge` i `supla-device` | budują się; uruchomione lokalnie |
-| OTBR + dongle ESP32-C5, parowanie, prawdziwe gniazdko, SUPLA Cloud | **nieuruchamiane** — wymaga sprzętu i VM |
-
-### Co zostało sprawdzone (2026-11-25, bez sprzętu, na maszynie deweloperskiej)
-
-- 78 testów jednostkowych łącznika oraz test całości z prawdziwym brokerem Mosquitto.
-- W zbudowanym obrazie `bridge`: odczyt kodu `MT:…` z wygenerowanego zdjęcia kodu QR oraz zapis konta SUPLA z panelu (przez API). Zdjęć prawdziwych naklejek ani aparatu telefonu nie sprawdzano.
-- Stos z `docker-compose.yml` bez OTBR (`mqtt`, `matter-server` 1.6.1, `bridge`, `supla`) z węzłami testowymi zaimportowanymi do kontrolera:
-  - gniazdko pojawiło się samo jako kanał 0, a `supla-device` sam wystartował z wygenerowaną konfiguracją;
-  - czujnik i ściemniana żarówka trafiły na listę „bez kanału”, z diagnostyką do pobrania;
-  - komenda i zmiana nazwy z panelu zadziałały, zmiana konfiguracji zrestartowała `supla-device`;
-  - żądanie z obcej strony zostało odrzucone.
-- `supla-device` z wygenerowaną konfiguracją: kanał reaguje na `{"state": 1}` / `{"state": 0}`, przechodzi w offline po `{"state": -1}` oraz po 120 s bez wiadomości.
-
-Czego to **nie** potwierdza: kontroler nie wykonuje komend na węzłach testowych, a serwer SUPLA był fikcyjny — faktyczne przełączenie urządzenia, rejestracja w SUPLA Cloud, sterowanie z aplikacji i samo parowanie nie były sprawdzane. Panel WWW był testowany przez API; jego wygląd w przeglądarce nie był oglądany.
-
-### Sprawdzone na sprzęcie (2026-11-25, VM Ubuntu 26.04 na Proxmox)
-
-- Dongle ESP32-C5 (mostek CH340) po passthrough widoczny w VM jako `/dev/ttyUSB0`; OTBR łączy się z RCP przy 460800 bodów i tworzy sieć Thread (stan `leader`).
-- Wymagana opcja `uart-init-deassert` w adresie radia (jest w `docker-compose.yml`): bez niej otwarcie portu wprowadza ESP w tryb programowania i `otbr-agent` kończy się błędem `spinel_driver … Init() Failure`.
-
-- Restart VM: wszystkie kontenery wracają same, border router ponownie zostaje liderem tej samej sieci Thread.
-- Bluetooth: adapter hosta Proxmox przekazany do VM (USB passthrough), BlueZ w VM, dodatek `docker-compose.bluetooth.yml` — kontroler zgłasza włączony Bluetooth i przyjmuje dataset Thread. Dodatek wymaga `apparmor=unconfined` (jest w pliku): bez tego AppArmor blokuje D-Bus i kontroler pada przy pierwszym parowaniu.
-- **Parowanie się nie udało:** ten konkretny adapter nie odbierał żadnych pakietów Bluetooth (skan: zero urządzeń), więc kontroler nie znalazł gniazdka. Parowanie, rejestracja w SUPLA Cloud i sterowanie prawdziwym gniazdkiem pozostają niesprawdzone.
-- Panel z LAN z logowaniem formularzem.
-
-- Raspberry Pi 4B (2026-11-26): obrazy `bridge` i `supla-device` budują się na arm64, cały stos działa, border router z donglem jest liderem sieci Thread, kontroler ma włączony Bluetooth, a skan Bluetooth z RPi widzi urządzenia w otoczeniu.
-
-- **Pierwszy kamień milowy w większości osiągnięty (2026-11-26):** GRILLPLATS sparowany kodem QR przez Bluetooth RPi do sieci Thread dongla; kanał 0 powstał sam; `supla-device` zarejestrował się w SUPLA Cloud; włącz/wyłącz z panelu przełącza gniazdko, a stan wraca z urządzenia i trafia do `supla-device` w ułamku sekundy.
-- Parowanie przez Bluetooth RPi 4 bywa zawodne (połączenie udaje się w części prób) — nieudane parowanie wystarczy ponowić.
-
-- Restart `supla-device` przy włączonym gniazdku nie wyłącza go (startowe `OFF` nie wychodzi, bo MQTT łączy się później — potwierdzone na gniazdku).
-- Odłączenie gniazdka na krótko i ponowne włożenie: gniazdko wraca do sieci Thread samo, kontroler odnawia sesję po ok. 1–2 minutach; w tym czasie komendy kończą się błędem.
-
-- Restart Raspberry Pi (2026-11-26): po ok. minucie od startu wszystkie usługi działają, border router jest liderem tej samej sieci Thread, gniazdko jest dostępne bez ponownego parowania i zachowuje stan, `supla-device` ponownie rejestruje się w SUPLA Cloud, sterowanie działa.
-
-### Do sprawdzenia na sprzęcie
-
-- Nazwy komend `On` / `Off` na prawdziwym urządzeniu.
-- Czy SUPLA Cloud przyjmuje kanał dopisany do już zarejestrowanego urządzenia bez dodatkowych kroków (być może trzeba na chwilę włączyć rejestrację urządzeń).
-- Test akceptacyjny: sterowanie z aplikacji SUPLA, zmiana przyciskiem, odłączenie gniazdka → offline, restart VM bez ponownego parowania.
+Wszystkie usługi działają w kontenerach (`docker compose`) w sieci hosta — Matter wymaga IPv6, multicastu i mDNS. Własnym kodem jest tylko `bridge/` (Python) i konfiguracja. ESP32-C5 dostaje **niezmieniony** przykład `ot_rcp` z ESP-IDF — w repozytorium nie ma firmware dla ESP.
 
 ## Wymagania
 
-- Host docelowy: **Raspberry Pi** (64-bitowy system, wbudowany Bluetooth) — patrz „Raspberry Pi” niżej. Alternatywnie VM z Ubuntu na Proxmox VE (karta sieciowa zmostkowana z LAN, IPv6 włączone) — ten wariant był uruchamiany, ale wymaga działającego adaptera Bluetooth przekazanego do VM. Nie WSL2.
-- ESP32-C5 N16R8 podłączony portem **UART** (mostek USB-UART) przez przedłużacz do portu USB 2.0.
-- Docker z wtyczką Compose w VM.
+- **Host:** Raspberry Pi z 64-bitowym systemem i wbudowanym Bluetooth (uruchomione na RPi 4B, Raspberry Pi OS / Debian 13 arm64), podłączony do LAN. Inny prawdziwy Linux też się nadaje; wariant z maszyną wirtualną na Proxmox opisuje [docs/proxmox-vm.md](docs/proxmox-vm.md). **Nie WSL2** (NAT psuje mDNS i IPv6).
+- **Radio Thread:** płytka ESP32-C5 z firmware `ot_rcp`, podłączona portem **UART** (mostek USB-UART) przez przedłużacz do portu USB 2.0.
+- **Bluetooth w hoście** — potrzebny do parowania urządzeń bezpośrednio do własnej sieci Thread.
+- Docker z wtyczką Compose i buildx.
 - Konto SUPLA z włączonym dodawaniem urządzeń (cloud.supla.org → „Moja SUPLA” → rejestracja urządzeń).
 
-## Instalacja krok po kroku
+## Szybki start
 
-### 1. Firmware RCP na ESP32-C5
+Skrót dla Raspberry Pi; pełna wersja z wyjaśnieniami: [docs/instalacja-raspberry-pi.md](docs/instalacja-raspberry-pi.md).
 
-Wgranie kasuje dotychczasowy firmware płytki i jego parowania. Sprawdzona droga (2026-11-25, płytka ESP32-C5HR8 z mostkiem CH340) — build w Dockerze, bez instalowania ESP-IDF:
+1. **Dongle.** Zbuduj i wgraj `ot_rcp` na ESP32-C5 — [docs/dongle-esp32-c5.md](docs/dongle-esp32-c5.md). Uwaga: wgranie kasuje dotychczasowy firmware płytki.
 
-```bash
-./host/build-rcp-docker.sh rcp-build      # ESP-IDF 5.5, wypisuje polecenia esptool do wgrania
-```
+   ```bash
+   ./host/build-rcp-docker.sh rcp-build      # wypisuje polecenia esptool do wgrania
+   ```
 
-Wgrywać można z dowolnego systemu, w którym płytka ma port szeregowy (w Windows: `COMx` po instalacji sterownika CH340, `pip install esptool`). Po wgraniu RCP odpowiada na UART z prędkością 460800 bodów.
+2. **Host.** Na Raspberry Pi, w katalogu projektu:
 
-Alternatywa z zainstalowanym ESP-IDF 5.5.x (nieuruchamiana): `./host/flash-rcp.sh /dev/ttyUSB0`.
+   ```bash
+   sudo apt install docker.io docker-compose docker-buildx bluez
+   sudo rfkill unblock bluetooth
+   ip -br link                               # nazwa interfejsu LAN: eth0 / end0 / wlan0
+   sudo ./host/setup-host.sh eth0            # sysctl wymagane przez border router
+   sudo cp host/99-thread-rcp.rules.example /etc/udev/rules.d/99-thread-rcp.rules
+   sudo udevadm control --reload && sudo udevadm trigger     # dongle jako /dev/thread-rcp
+   ```
 
-### 2. Proxmox: przekazanie USB do VM
+3. **Konfiguracja.**
 
-Na hoście Proxmox odczytaj identyfikator mostka USB-UART (`lsusb`) i przekaż urządzenie do VM:
+   ```bash
+   cp .env.example .env                      # ustaw INFRA_IF; dopisz COMPOSE_FILE (Bluetooth) — patrz instrukcja
+   cp config/devices.example.yaml config/devices.yaml
+   mkdir -p data/otbr data/matter data/supla config/supla
+   sudo chown -R 1000:1000 data/matter data/supla config
+   ```
 
-```bash
-qm set <VMID> -usb0 host=<vid>:<pid>     # dla mostka CH340: host=1a86:7523
-```
+4. **Sieć Thread i start.**
 
-W VM port pojawi się jako `/dev/ttyUSB0` albo `/dev/ttyACM0`. Nadaj mu stałą nazwę `/dev/thread-rcp` według `host/99-thread-rcp.rules.example`.
+   ```bash
+   docker compose up -d otbr
+   docker exec otbr ot-ctl dataset init new
+   docker exec otbr ot-ctl dataset commit active
+   docker exec otbr ot-ctl ifconfig up
+   docker exec otbr ot-ctl thread start
+   docker exec otbr ot-ctl state             # po chwili: leader
+   docker compose up -d --build
+   docker compose run --rm bridge set-thread-dataset "$(docker exec otbr ot-ctl dataset active -x | head -1)"
+   ```
 
-Uwagi dla Proxmox:
-- Jeśli dla VM włączona jest zapora Proxmox, to jej conntrack działa na hoście Proxmox. Dokumentacja matterjs-server zaleca wtedy na **hipernadzorcy** `net.netfilter.nf_conntrack_udp_timeout_stream=3600` (inaczej urządzenia bateryjne gubią subskrypcje). Najprościej: zapora wyłączona dla tej VM.
-- Ruch multicast IPv6 (mDNS, RA) musi przechodzić przez most `vmbr0`. Przy problemach z wykrywaniem urządzeń sprawdź `multicast_snooping` mostu (wskazówka niezweryfikowana na tym sprzęcie).
+5. **Panel WWW** (`127.0.0.1:8099`, z innego komputera przez tunel SSH albo z LAN z hasłem) — wpisz konto SUPLA i sparuj urządzenie kodem lub zdjęciem kodu QR: [docs/panel-www.md](docs/panel-www.md), [docs/parowanie.md](docs/parowanie.md).
 
-### Raspberry Pi zamiast VM
+6. **Kopia zapasowa** — od razu po pierwszym parowaniu: [docs/kopie-zapasowe.md](docs/kopie-zapasowe.md).
 
-Kroki 3–6 są takie same, z różnicami (wariant uruchomiony 2026-11-26 na RPi 4B, Raspberry Pi OS / Debian 13 arm64):
-- krok 2 (Proxmox) odpada — dongle wpinasz bezpośrednio w port USB 2.0 Raspberry Pi, przez przedłużacz;
-- system 64-bitowy (Raspberry Pi OS 64-bit albo Ubuntu Server arm64), Docker: `sudo apt install docker.io docker-compose-v2 docker-buildx`;
-- `INFRA_IF` to interfejs, którym RPi jest w LAN (`ip -br link`: zwykle `eth0` lub `end0`, przy Wi-Fi `wlan0`);
-- Docker w Debianie: `sudo apt install docker.io docker-compose docker-buildx`;
-- wbudowany Bluetooth bywa programowo zablokowany: `sudo rfkill unblock bluetooth`; Wi-Fi w tej samej podsieci co kabel najlepiej wyłączyć (`sudo nmcli radio wifi off`);
-- Bluetooth jest wbudowany: `sudo apt install bluez`, a w `.env` dopisz `COMPOSE_FILE=docker-compose.yml:docker-compose.bluetooth.yml`;
-- kompilacja `supla-device` na RPi trwa wyraźnie dłużej niż na PC.
+   ```bash
+   sudo ./host/install-backup-timer.sh daily 14
+   ```
 
-### 3. Przygotowanie VM
+## Najważniejsze ostrzeżenia
 
-```bash
-ip -br link                              # nazwa interfejsu LAN, zwykle ens18
-sudo ./host/setup-host.sh ens18          # sysctl wymagane przez OTBR
-cp .env.example .env                     # uzupełnij INFRA_IF (konto SUPLA wpiszesz w panelu)
-cp config/devices.example.yaml config/devices.yaml
-mkdir -p data/otbr data/matter data/supla config/supla
-sudo chown -R 1000:1000 data/matter data/supla config
-```
+- **Kanały SUPLA są trwałe.** Wolno je tylko dopisywać; usunięcie kanału lub zmiana typu kończy się „Channel conflict” i usunięciem urządzenia z SUPLA Cloud razem z historią. Szczegóły: [docs/jak-to-dziala.md](docs/jak-to-dziala.md).
+- **Sekrety poza repozytorium:** `.env`, `data/`, `backups/`, `config/devices.yaml`, `config/supla/` są w `.gitignore`. Dataset Thread, dane kontrolera Matter, GUID/AUTHKEY SUPLA i kody parowania `MT:…` nie mogą trafić do repozytorium. Kopie zapasowe zawierają to wszystko.
+- **Panel nie szyfruje połączenia** (HTTP). Udostępniaj go tylko w zaufanej sieci LAN i nigdy do Internetu; to samo dotyczy REST OTBR, WebSocket `matter-server` i brokera MQTT (domyślnie nasłuchują tylko na `127.0.0.1`).
 
-### 4. Sieć Thread
+## Stan projektu
 
-```bash
-docker compose up -d otbr
-docker exec otbr ot-ctl dataset init new
-docker exec otbr ot-ctl dataset commit active
-docker exec otbr ot-ctl ifconfig up
-docker exec otbr ot-ctl thread start
-docker exec otbr ot-ctl state            # po chwili: leader
-```
+Co obsługuje łącznik:
 
-### 5. Start stosu
+| Funkcja | Stan |
+| --- | --- |
+| Gniazdko / przekaźnik (klaster OnOff): stan, sterowanie, dostępność | działa na sprzęcie (GRILLPLATS) |
+| Panel WWW: konto SUPLA, parowanie kodem i zdjęciem QR, kanały, diagnostyka, kopie | działa na sprzęcie |
+| Światła z regulacją bieli (KAJPLATS) jako kanał SUPLA „ściemniacz CCT”: jasność i temperatura bieli | działa na sprzęcie: polecenie z SUPLA Cloud dotarło do żarówki, stan wraca; wymaga protokołu SUPLA 28 na serwerze. Sterowanie także suwakami w panelu |
+| Licznik energii gniazdka (napięcie, prąd, moc, energia) | napisany i sprawdzony lokalnie z `supla-device`; **niewdrożony na sprzęcie**. Ograniczenie: przy braku danych kanał nie przechodzi w offline, tylko zgłasza brak pomiarów |
+| Czujniki, inne typy urządzeń | nieobsługiwane — można sparować i pobrać zrzut diagnostyczny |
 
-```bash
-docker compose up -d --build
-docker compose logs -f bridge supla
-```
+### Sprawdzone bez sprzętu (2026-11-25, maszyna deweloperska)
 
-Jeśli `matter-server` restartuje się w kółko z błędem `Unknown interface`, w `.env` jest zła nazwa `INFRA_IF`.
+- 78 testów jednostkowych łącznika oraz test całości z prawdziwym brokerem Mosquitto.
+- W zbudowanym obrazie `bridge`: odczyt kodu `MT:…` z wygenerowanego zdjęcia kodu QR oraz zapis konta SUPLA z panelu (przez API).
+- Stos bez OTBR (`mqtt`, `matter-server` 1.6.1, `bridge`, `supla`) z węzłami testowymi zaimportowanymi do kontrolera: gniazdko pojawiło się samo jako kanał 0, a `supla-device` wystartował z wygenerowaną konfiguracją; czujnik i ściemniana żarówka trafiły na listę „bez kanału” z diagnostyką do pobrania; komenda i zmiana nazwy z panelu zadziałały, zmiana konfiguracji zrestartowała `supla-device`; żądanie z obcej strony zostało odrzucone.
+- `supla-device` z wygenerowaną konfiguracją: kanał reaguje na `{"state": 1}` / `{"state": 0}`, przechodzi w offline po `{"state": -1}` oraz po 120 s bez wiadomości.
 
-### 6. Panel WWW i parowanie
+### Sprawdzone na Raspberry Pi 4B (2026-11-26, Raspberry Pi OS / Debian 13 arm64)
 
-Panel działa na `127.0.0.1:8099` w VM. Z własnego komputera:
+- Obrazy `bridge` i `supla-device` budują się na arm64, cały stos działa, border router z donglem ESP32-C5 (mostek CH340, 460800 bodów) jest liderem sieci Thread, kontroler ma włączony Bluetooth.
+- GRILLPLATS sparowany kodem QR przez Bluetooth RPi do sieci Thread dongla; kanał 0 powstał sam; `supla-device` zarejestrował się w SUPLA Cloud; włącz/wyłącz z panelu przełącza gniazdko, a stan wraca z urządzenia i trafia do `supla-device` w ułamku sekundy.
+- Naciśnięcie przycisku na gniazdku zmienia stan w aplikacji SUPLA (potwierdzone przez użytkownika).
+- Żarówka KAJPLATS E27 WS sparowana zdjęciem kodu QR z telefonu przez panel (bez kanału SUPLA — patrz tabela wyżej).
+- Parowanie przez Bluetooth RPi 4 bywa zawodne (połączenie udaje się w części prób) — nieudane parowanie wystarczy ponowić.
+- Restart `supla-device` przy włączonym gniazdku nie wyłącza go.
+- Odłączenie gniazdka na krótko i ponowne włożenie: gniazdko wraca do sieci Thread samo, kontroler odnawia sesję po ok. 1–2 minutach; w tym czasie komendy kończą się błędem.
+- Restart Raspberry Pi: po ok. minucie wszystkie usługi działają, border router jest liderem tej samej sieci Thread, gniazdko jest dostępne bez ponownego parowania, `supla-device` ponownie rejestruje się w SUPLA Cloud.
+- Kopie zapasowe: tworzenie, harmonogram, pobieranie z panelu i rozpakowanie z porównaniem zawartości.
 
-```bash
-ssh -L 8099:127.0.0.1:8099 <vm>      # potem http://localhost:8099
-```
+### Sprawdzone na VM Ubuntu 26.04 na Proxmox (2026-11-25, wariant porzucony)
 
-Dostęp bezpośrednio z LAN: w `config/devices.yaml` ustaw `web.host` na adres VM, a w `.env` hasło `M2S_WEB_PASSWORD` (bez hasła łącznik nie wystartuje z takim ustawieniem). Połączenie nie jest szyfrowane.
+- Dongle po USB passthrough widoczny jako `/dev/ttyUSB0`; OTBR tworzy sieć Thread (stan `leader`); restart VM — stos i sieć wracają same; panel z LAN z logowaniem formularzem.
+- Bluetooth przez passthrough adaptera hosta: kontroler zgłaszał włączony Bluetooth, ale **parowanie się nie udało** — ten adapter nie odbierał żadnych pakietów. Szczegóły: [docs/proxmox-vm.md](docs/proxmox-vm.md).
 
-W panelu:
-- **Konto SUPLA** — serwer (np. `svr12.supla.org`) i e-mail konta. Zapisywane w `config/supla/account.json` (poza repozytorium, uprawnienia 600); po zapisie `supla-device` startuje ponownie z nowymi danymi. Zmienne `SUPLA_SERVER` / `SUPLA_MAIL` w `.env` są tylko wartością początkową.
-- **Parowanie** — wpisujesz kod urządzenia albo odczytujesz go ze zdjęcia kodu QR („Zrób zdjęcie kodu QR” / „Wybierz zdjęcie z galerii”). Zdjęcie jest dekodowane lokalnie w łączniku i nigdzie nie jest zapisywane. Żeby użyć aparatu telefonu, panel musi być dostępny z LAN (patrz wyżej).
-  - *Bezpośrednio do własnej sieci Thread:* wymaga adaptera Bluetooth w VM (stos z `-f docker-compose.yml -f docker-compose.bluetooth.yml`) i zapisanego datasetu Thread (sekcja „Dataset sieci Thread”, wartość z `docker exec otbr ot-ctl dataset active -x`).
-  - *Udostępnienie z aplikacji IKEA:* zaznacz „urządzenie jest już w sieci”; Bluetooth niepotrzebny, ale urządzenie zostaje w sieci Thread huba IKEA.
-- **Kanały SUPLA** — sparowane gniazdko pojawia się samo jako kolejny kanał; `supla-device` restartuje się z nową konfiguracją. Są tu też przyciski włącz/wyłącz do testu.
-- **Urządzenia bez kanału** — typy jeszcze nieobsługiwane (czujniki, ściemniane żarówki). Można je sparować i przyciskiem „Diagnostyka” pobrać zrzut atrybutów; na jego podstawie dopisuje się obsługę. Kanał SUPLA powstaje dopiero po dodaniu obsługi, bo kanału nie da się później zmienić ani usunąć.
+### Niesprawdzone
 
-To samo z wiersza poleceń:
+- Sterowanie gniazdkiem z aplikacji SUPLA (potwierdzona jest zmiana stanu w aplikacji po naciśnięciu przycisku oraz sterowanie z panelu).
+- Odłączenie gniazdka na ponad 2 minuty → kanał offline w SUPLA.
+- Czy SUPLA Cloud przyjmuje kanał dopisany do już zarejestrowanego urządzenia bez dodatkowych kroków (być może trzeba na chwilę włączyć rejestrację urządzeń).
+- Pełne odtworzenie kopii zapasowej na drugim urządzeniu.
+- Skrypt `host/flash-rcp.sh` (droga z zainstalowanym ESP-IDF) oraz wgrywanie firmware z Linuksa — wgrywano z Windows.
+- Parowanie przez udostępnienie z innej aplikacji (bez Bluetootha).
+- Inne modele Raspberry Pi i inne dystrybucje niż wymienione wyżej.
 
-```bash
-docker compose run --rm bridge commission [--network-only]
-docker compose run --rm bridge nodes
-docker compose run --rm bridge diagnostics <node_id> > node.json
-docker compose run --rm bridge set-thread-dataset "$(docker exec otbr ot-ctl dataset active -x | head -1)"
-```
+## Dokumentacja
 
-Po pierwszym połączeniu urządzenie „Matter2Supla” pojawi się w SUPLA Cloud; funkcję kanału (np. „włącznik zasilania”) ustaw w Cloud.
+Spis treści: [docs/README.md](docs/README.md).
 
-Dataset Thread i kody parowania są sekretami — nie zapisuj ich w repozytorium.
-
-### Zrzut diagnostyczny
-
-Zawiera atrybuty węzła i listę klastrów na endpointach. Domyślnie usuwane są numer seryjny, identyfikator egzemplarza, etykieta i klastry z danymi sieci oraz poświadczeniami (`--full` albo `?full=1` wyłącza to — takiego zrzutu nie publikuj). Format pasuje do komendy `import_test_node` kontrolera, więc zrzut można wczytać jako węzeł testowy i rozwijać obsługę bez urządzenia.
-
-Automatyczne dopisywanie można wyłączyć (`auto_add: false` w `config/devices.yaml`); wtedy kanał dodaje się przyciskiem w panelu.
-
-## Jak to działa
-
-| Kierunek | Temat MQTT | Treść |
-| --- | --- | --- |
-| Matter → SUPLA | `m2s/<node>/<endpoint>/onoff/state` (retained) | `{"state": 1}`, `{"state": 0}`, `{"state": -1}` = niedostępne |
-| SUPLA → Matter | `m2s/<node>/<endpoint>/onoff/set` | `ON` / `OFF` (także `TOGGLE`, `1`, `0`) |
-| diagnostyka | `m2s/bridge/status` (retained, LWT) | `online` / `offline` |
-
-Dostępność — kanał SUPLA przechodzi w offline, gdy:
-- węzeł Matter jest nieosiągalny albo `matter-server` nie działa → łącznik publikuje `{"state": -1}`;
-- łącznik został zatrzymany → przy zamykaniu publikuje `-1`;
-- łącznik padł bez sprzątania → stan wygasa po `state_expiration_sec` (łącznik ponawia publikację co `heartbeat_sec`).
-
-Stan zmienia się dopiero po potwierdzeniu z urządzenia; łącznik nie „zgaduje” wyniku komendy. Komendy z flagą retain są ignorowane.
-
-## Trwałość kanałów SUPLA
-
-Kolejność i typ kanałów w SUPLA są trwałe. **Wolno tylko dopisywać urządzenia z kolejnym `supla_channel`.** Usunięcie kanału lub zmiana typu kończy się błędem „Channel conflict” i koniecznością usunięcia urządzenia z SUPLA Cloud razem z historią. Łącznik pilnuje tego plikiem `config/supla/channels.lock.json` i odmawia wygenerowania niezgodnej konfiguracji. Wyparowane urządzenie zostaje jako kanał offline. Reset po świadomym usunięciu urządzenia z Cloud: `docker compose run --rm bridge gen-supla-config --force`.
-
-## Sekrety i kopie zapasowe
-
-Poza repozytorium (`.gitignore`): `.env`, `data/`, `backups/`, `config/devices.yaml`, `config/supla/`.
-
-Usługi nasłuchują tylko na `127.0.0.1` (WebSocket i dashboard `matter-server` :5580, Mosquitto :1883, REST/WWW OTBR :8081/:8080); panel :8099 domyślnie też, a po ustawieniu `web.host` — z LAN z hasłem.
-
-### Automatyczna kopia zapasowa
-
-```bash
-sudo ./host/install-backup-timer.sh daily 14     # codziennie 03:30, 14 ostatnich kopii (albo: weekly 8)
-sudo ./host/backup.sh                            # kopia na żądanie
-```
-
-Kopia (`backups/m2s-backup-RRRRMMDD-GGMMSS.tar.gz`) zawiera `data/` (tożsamość kontrolera Matter z parowaniami, sieć Thread wraz z czytelnym datasetem, GUID/AUTHKEY SUPLA), `config/` i `.env`. Na czas pakowania (kilka sekund) zatrzymywane są `matter-server` i `supla`; gniazdko wraca po kilkunastu sekundach. Kopie można pobrać z panelu (sekcja „Kopie zapasowe”) — **zawierają sekrety**, a panel nie szyfruje połączenia, więc pobieraj je tylko w zaufanej sieci i trzymaj poza tym urządzeniem.
-
-### Odtworzenie na innym urządzeniu
-
-1. Docker, katalog projektu z repozytorium, `sudo ./host/setup-host.sh <interfejs>`, reguła udev dla dongla.
-2. `sudo ./host/restore.sh /ścieżka/m2s-backup-….tar.gz`
-3. Popraw `INFRA_IF` w `.env` i `web.host` w `config/devices.yaml`, jeśli interfejs lub adres IP są inne; `docker compose up -d --build`.
-
-Nie uruchamiaj jednocześnie starej i odtworzonej instalacji — miałyby tę samą tożsamość w Matter, Thread i SUPLA. Przy innym donglu niż w chwili robienia kopii skrypt podpowie, jak przywrócić sieć Thread z zapisanego datasetu. Sprawdzone: tworzenie kopii, harmonogram, pobieranie z panelu i rozpakowanie kopii z porównaniem zawartości. **Pełne odtworzenie na drugim urządzeniu nie było wykonywane.**
-
-## Rozwój
-
-```bash
-cd bridge
-python -m venv .venv && .venv/bin/pip install -e ".[dev]"
-.venv/bin/pytest
-# test z prawdziwym brokerem:
-docker run -d --rm -p 127.0.0.1:18883:1883 eclipse-mosquitto:2 mosquitto -c /mosquitto-no-auth.conf
-M2S_TEST_MQTT=127.0.0.1:18883 .venv/bin/pytest tests/test_e2e_mqtt.py
-```
+| Dokument | Zawartość |
+| --- | --- |
+| [docs/dongle-esp32-c5.md](docs/dongle-esp32-c5.md) | sprzęt, budowa i wgranie firmware `ot_rcp` |
+| [docs/instalacja-raspberry-pi.md](docs/instalacja-raspberry-pi.md) | instalacja krok po kroku: system, Docker, sysctl, udev, `.env`, sieć Thread, Bluetooth, start |
+| [docs/proxmox-vm.md](docs/proxmox-vm.md) | wariant z maszyną wirtualną na Proxmox i jego ograniczenia |
+| [docs/panel-www.md](docs/panel-www.md) | panel: dostęp i hasło, konto SUPLA, kanały, diagnostyka urządzeń nieobsługiwanych |
+| [docs/parowanie.md](docs/parowanie.md) | parowanie urządzeń: tryb parowania, reset, ponawianie |
+| [docs/kopie-zapasowe.md](docs/kopie-zapasowe.md) | kopie zapasowe i odtwarzanie na innym urządzeniu |
+| [docs/rozwiazywanie-problemow.md](docs/rozwiazywanie-problemow.md) | znane problemy i ich rozwiązania |
+| [docs/jak-to-dziala.md](docs/jak-to-dziala.md) | tematy MQTT, dostępność, trwałość kanałów SUPLA, pliki i porty |
+| [docs/cli.md](docs/cli.md) | polecenia `m2s-bridge` |
+| [docs/rozwoj.md](docs/rozwoj.md) | testy i dopisywanie obsługi nowych urządzeń |
 
 ## Komponenty zewnętrzne
 

@@ -177,9 +177,15 @@ def main(argv: list[str] | None = None) -> int:
         if command == "run":
             asyncio.run(_run(_load_or_default(args.config), args.config))
         elif command == "gen-supla-config":
-            path = write_supla_config(
-                load_config(args.config), args.output, args.server or "", args.mail or "", args.force
-            )
+            server, mail = args.server or "", args.mail or ""
+            account = Path(args.output).parent / "account.json"
+            if (not server or not mail) and account.exists():
+                # konto wpisane w panelu WWW
+                import json
+
+                saved = json.loads(account.read_text(encoding="utf-8"))
+                server, mail = server or str(saved.get("server", "")), mail or str(saved.get("mail", ""))
+            path = write_supla_config(load_config(args.config), args.output, server, mail, args.force)
             print(f"Zapisano {path}")
         elif command == "nodes":
             asyncio.run(_nodes(_matter_url(args)))

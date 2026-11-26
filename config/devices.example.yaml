@@ -18,6 +18,10 @@ state_expiration_sec: 120  # po tym czasie bez wiadomości supla-device uznaje s
 # Nowo sparowane urządzenia obsługiwanego typu są same dopisywane jako kolejne kanały SUPLA.
 auto_add: true
 
+# Światła z regulacją bieli jako kanał SUPLA „ściemniacz CCT” (wymaga protokołu SUPLA 28 na serwerze).
+# Po ustawieniu false światłem steruje się tylko suwakami w panelu.
+lights_as_channels: true
+
 # Panel WWW (parowanie, lista kanałów). Domyślnie tylko lokalnie: ssh -L 8099:127.0.0.1:8099 <vm>
 # Dla dostępu z LAN ustaw host na adres VM i hasło M2S_WEB_PASSWORD w .env.
 web:
