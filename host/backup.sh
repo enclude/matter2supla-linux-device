@@ -43,7 +43,8 @@ done
 
 INCLUDE="data config"
 [ -f .env ] && INCLUDE="$INCLUDE .env"
-( umask 077; tar --numeric-owner -czpf "$OUT.tmp" $INCLUDE )
+# Bez dziennika kontrolera Matter (data/matter/logs): duży, a do odtworzenia niepotrzebny.
+( umask 077; tar --numeric-owner --exclude=data/matter/logs -czpf "$OUT.tmp" $INCLUDE )
 restart; STOPPED=""; trap - EXIT
 
 tar -tzf "$OUT.tmp" >/dev/null   # kontrola, że archiwum da się odczytać

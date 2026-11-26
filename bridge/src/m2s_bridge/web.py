@@ -23,6 +23,7 @@ from urllib.parse import urlsplit
 
 from aiohttp import web
 
+from . import logs
 from .config import ConfigError, WebConfig
 from .manager import Manager, ManagerError
 from .qr import QrError, decode_matter_qr
@@ -319,6 +320,14 @@ def create_app(
             headers={"Content-Disposition": f'attachment; filename="{name}"', "Cache-Control": "no-store"},
         )
 
+    async def log_view(request: web.Request) -> web.Response:
+        source = request.query.get("source", "bridge")
+        if source not in ("bridge", "matter"):
+            raise ValueError("source: bridge albo matter")
+        count = int(request.query.get("lines", "300"))
+        data = await asyncio.to_thread(logs.read, source, count)
+        return web.json_response(data, headers={"Cache-Control": "no-store"})
+
     async def diagnostics(request: web.Request) -> web.Response:
         node_id = int(request.match_info["node_id"])
         dump = manager.diagnostics(node_id, full=request.query.get("full") == "1")
@@ -338,6 +347,7 @@ def create_app(
             web.post("/login", login),
             web.post("/api/logout", logout),
             web.get("/api/state", state),
+            web.get("/api/logs", log_view),
             web.get("/api/nodes/{node_id}/diagnostics", diagnostics),
             web.get("/api/backups/{name}", backup_download),
             web.post("/api/commission", commission),

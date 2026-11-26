@@ -304,3 +304,28 @@ async def test_unwritable_config_gives_readable_error(tmp_path, monkeypatch):
     assert "devices.yaml" in (await response.json())["error"]
     assert manager.groups() == []
     await client.close()
+
+
+async def test_logs_endpoint(tmp_path, monkeypatch):
+    import logging
+
+    from m2s_bridge import logs
+
+    logs.install("%(levelname)s %(name)s: %(message)s")
+    manager, client = await make(tmp_path)
+    logging.getLogger("m2s_bridge.test").warning("kod MT:Y.K9042C00KA0648G00 i klucz %s", "ab" * 40)
+    data = await (await client.get("/api/logs?source=bridge&lines=5")).json()
+    assert data["available"] and "MT:(ukryty)" in data["lines"][-1]
+    assert "MT:Y" not in data["lines"][-1] and "abababababab…" in data["lines"][-1]
+
+    # dziennik kontrolera: brak pliku -> podpowiedź, plik -> koniec pliku bez kodów sterujących terminala
+    monkeypatch.setenv("M2S_MATTER_LOG", str(tmp_path / "matter.log"))
+    data = await (await client.get("/api/logs?source=matter")).json()
+    assert data["available"] is False and "LOG_FILE" in data["hint"]
+    (tmp_path / "matter.log").write_text(
+        "\n".join(f"\x1b[2K2026-11-26 20:0{i % 10}:00 INFO krok {i}" for i in range(50)) + "\n", encoding="utf-8"
+    )
+    data = await (await client.get("/api/logs?source=matter&lines=3")).json()
+    assert data["lines"] == [f"2026-11-26 20:0{i % 10}:00 INFO krok {i}" for i in (47, 48, 49)]
+    assert (await client.get("/api/logs?source=inne")).status == 400
+    await client.close()

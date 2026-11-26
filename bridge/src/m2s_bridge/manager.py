@@ -569,6 +569,11 @@ class Manager:
         client = self._client()
         if target != TARGET_CHANNEL:
             self._known_before_commission = set(self.core.nodes)
+        log.info(
+            "parowanie: start (%s, po sparowaniu: %s)",
+            "urządzenie już w sieci" if network_only else "przez Bluetooth",
+            target,
+        )
         self.commission_state = {"running": True, "message": "Parowanie trwa (do kilku minut)…", "error": None}
         self._commission_task = asyncio.create_task(self._commission(client, code, network_only, target))
 

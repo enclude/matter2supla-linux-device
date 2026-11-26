@@ -78,6 +78,11 @@
   summary { cursor: pointer; font-weight: 600; font-size: 13px; }
   details > div { margin-top: 12px; }
   #group-form { margin-top: 16px; }
+  .logbar { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin-bottom: 12px; }
+  .logbar select, .logbar input[type=text] { width: auto; flex: 1 1 220px; }
+  .logbar .check { margin: 0; align-items: center; }
+  .logbar .check input { margin-top: 0; }
+  #log-view { margin: 0; height: 60vh; overflow: auto; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre; }
   @media (max-width: 560px) { .row { grid-template-columns: 44px 1fr; } .actions { grid-column: 1 / -1; justify-content: flex-start; } }
 </style>
 </head>
@@ -97,6 +102,7 @@
     <button type="button" role="tab" data-tab="grupy">Grupy świateł <span class="count" id="count-grupy"></span></button>
     <button type="button" role="tab" data-tab="parowanie">Parowanie</button>
     <button type="button" role="tab" data-tab="system">System</button>
+    <button type="button" role="tab" data-tab="logi">Logi</button>
   </nav>
 
   <div class="tab" id="tab-kanaly" role="tabpanel" hidden>
@@ -203,6 +209,24 @@
     <div id="backups"><p class="empty">Wczytywanie…</p></div>
     <p class="hint">Kopia zawiera wszystko, czego nie da się odtworzyć: tożsamość kontrolera Matter (parowania), klucze sieci Thread, identyfikator urządzenia SUPLA i konfigurację kanałów. Zawiera sekrety — trzymaj ją w bezpiecznym miejscu. Odtwarzanie: <code>sudo ./host/restore.sh plik.tar.gz</code>.</p>
   </section>
+  </div>
+
+  <div class="tab" id="tab-logi" role="tabpanel" hidden>
+    <section>
+      <h2>Logi</h2>
+      <div class="logbar">
+        <select id="log-source" aria-label="Źródło dziennika">
+          <option value="matter">Kontroler Matter (parowanie, połączenia z urządzeniami)</option>
+          <option value="bridge">Łącznik (kanały, komendy, SUPLA)</option>
+        </select>
+        <input type="text" id="log-filter" placeholder="Filtr, np. commission albo @1:4" autocomplete="off" spellcheck="false" aria-label="Filtr wierszy">
+        <label class="check"><input type="checkbox" id="log-important"><span>Tylko ostrzeżenia i błędy</span></label>
+        <label class="check"><input type="checkbox" id="log-follow" checked><span>Odświeżaj i przewijaj</span></label>
+      </div>
+      <div id="log-status"></div>
+      <pre id="log-view" tabindex="0" aria-label="Dziennik"></pre>
+      <p class="hint">Ostatnie wiersze dziennika, odświeżane co 2 s, gdy zakładka jest otwarta. Kody parowania i długie ciągi (certyfikaty, klucze) są ukrywane. Parowanie przez Bluetooth widać w dzienniku kontrolera: kolejne kroki mają opis „commissioning step”.</p>
+    </section>
   </div>
 
   <footer id="version"></footer>
@@ -371,7 +395,27 @@ function renderCandidates(state) {
   }));
 }
 
-const TABS = ["kanaly", "grupy", "parowanie", "system"];
+const TABS = ["kanaly", "grupy", "parowanie", "system", "logi"];
+
+async function refreshLogs(force) {
+  // Dziennik pobieramy tylko, gdy zakładka jest widoczna i włączone jest odświeżanie.
+  if ($("tab-logi").hidden || (!force && !$("log-follow").checked)) return;
+  try {
+    const response = await fetch(`/api/logs?source=${$("log-source").value}&lines=600`);
+    if (!response.ok) throw new Error("błąd " + response.status);
+    const data = await response.json();
+    notice($("log-status"), "warn", data.available ? null : data.hint);
+    const needle = $("log-filter").value.trim().toLowerCase();
+    const important = $("log-important").checked;
+    const lines = data.lines.filter((line) =>
+      (!needle || line.toLowerCase().includes(needle)) && (!important || /\b(WARN|WARNING|ERROR|FATAL|CRITICAL)\b/.test(line)));
+    const view = $("log-view");
+    view.textContent = lines.length ? lines.join("\n") : (data.available ? "Brak wierszy do pokazania." : "");
+    if ($("log-follow").checked) view.scrollTop = view.scrollHeight;
+  } catch (err) {
+    notice($("log-status"), "bad", "Nie udało się pobrać dziennika: " + err.message);
+  }
+}
 
 function showTab(name, remember) {
   // Zakładka jest w adresie (#grupy), więc odświeżenie strony i przycisk „wstecz” ją zachowują.
@@ -598,8 +642,12 @@ $("dataset-form").addEventListener("submit", (e) => {
 for (const button of document.querySelectorAll(".tabs button")) button.onclick = () => showTab(button.dataset.tab, true);
 window.addEventListener("hashchange", () => showTab(location.hash.slice(1)));
 showTab(location.hash.slice(1));
+for (const id of ["log-source", "log-important", "log-follow"]) $(id).addEventListener("change", () => refreshLogs(true));
+$("log-filter").addEventListener("input", () => refreshLogs(true));
+for (const button of document.querySelectorAll('.tabs button[data-tab="logi"]')) button.addEventListener("click", () => refreshLogs(true));
 refresh();
 setInterval(refresh, 2000);
+setInterval(refreshLogs, 2000);
 </script>
 </body>
 </html>

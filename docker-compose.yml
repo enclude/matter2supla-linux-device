@@ -40,6 +40,8 @@ services:
       LISTEN_ADDRESS: "127.0.0.1"        # WebSocket i dashboard tylko lokalnie (z LAN: tunel SSH)
       PRIMARY_INTERFACE: "${INFRA_IF}"
       TZ: "${TZ:-Europe/Warsaw}"
+      # Dziennik także do pliku (rotacja dobowa, 7 plików) - czyta go zakładka „Logi” panelu.
+      LOG_FILE: "/data/logs/matter-server.log"
     volumes:
       - "./data/matter:/data"            # dane fabric — sekret, kopia zapasowa! (właściciel: uid 1000)
     logging: *logging
@@ -64,9 +66,13 @@ services:
       SUPLA_SERVER: "${SUPLA_SERVER:-}"
       SUPLA_MAIL: "${SUPLA_MAIL:-}"
       M2S_WEB_PASSWORD: "${M2S_WEB_PASSWORD:-}"   # wymagane, gdy panel WWW ma być dostępny z LAN
+      TZ: "${TZ:-Europe/Warsaw}"
     volumes:
       - "./config:/config"                    # łącznik zapisuje tu devices.yaml i supla/ (uid 1000)
       - "./backups:/backups:ro"               # kopie zapasowe do pobrania z panelu (host/backup.sh)
+      # Tylko do odczytu, dla zakładki „Logi” (plik logs/matter-server.log). Cały katalog, a nie sam
+      # podkatalog logs/, bo ten tworzy dopiero kontroler - Docker założyłby go wcześniej jako root.
+      - "./data/matter:/matter-data:ro"
     depends_on: [mqtt, matter-server]
     logging: *logging
     restart: unless-stopped

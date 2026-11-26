@@ -17,6 +17,7 @@ from typing import Any
 
 from pathlib import Path
 
+from . import logs
 from .config import Config, ConfigError, MatterConfig, load_config
 from .matter_client import MatterClient, MatterConnectionError, MatterError
 from .supla_config import ChannelConflictError, write_supla_config
@@ -174,10 +175,9 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    logging.basicConfig(
-        level=args.log_level.upper(),
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-    )
+    log_format = "%(asctime)s %(levelname)s %(name)s: %(message)s"
+    logging.basicConfig(level=args.log_level.upper(), format=log_format)
+    logs.install(log_format)  # kopia w pamięci dla zakładki „Logi” panelu
     command = args.command or "run"
     try:
         if command == "run":

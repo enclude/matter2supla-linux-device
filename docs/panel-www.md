@@ -66,7 +66,7 @@ Plik `config/devices.yaml` jest także zapisywany przez łącznik (przy dopisywa
 
 ## Nagłówek i komunikaty
 
-Pod nagłówkiem są zakładki: **Kanały** (kanały SUPLA i urządzenia bez kanału), **Grupy świateł**, **Parowanie** i **System** (konto SUPLA, kopie zapasowe). Wybrana zakładka jest zapisana w adresie strony (np. `#grupy`), więc odświeżenie jej nie zmienia. Gdy adres nie wskazuje zakładki, panel wybiera ją sam przy otwarciu: bez wpisanego konta SUPLA - „System” (tam jest formularz konta), z kontem na telefonie (ekran dotykowy, wąskie okno) - „Parowanie”, a na komputerze - „Kanały”. Dopóki konta nie ma, zakładka „Parowanie” pokazuje żółtą informację, że kanały pojawią się w SUPLA dopiero po jego wpisaniu. Liczba przy zakładce „Kanały” to liczba kanałów, a dopisek `+N` oznacza urządzenia czekające bez kanału.
+Pod nagłówkiem są zakładki: **Kanały** (kanały SUPLA i urządzenia bez kanału), **Grupy świateł**, **Parowanie**, **System** (konto SUPLA, kopie zapasowe) i **Logi**. Wybrana zakładka jest zapisana w adresie strony (np. `#grupy`), więc odświeżenie jej nie zmienia. Gdy adres nie wskazuje zakładki, panel wybiera ją sam przy otwarciu: bez wpisanego konta SUPLA - „System” (tam jest formularz konta), z kontem na telefonie (ekran dotykowy, wąskie okno) - „Parowanie”, a na komputerze - „Kanały”. Dopóki konta nie ma, zakładka „Parowanie” pokazuje żółtą informację, że kanały pojawią się w SUPLA dopiero po jego wpisaniu. Liczba przy zakładce „Kanały” to liczba kanałów, a dopisek `+N` oznacza urządzenia czekające bez kanału.
 
 Znaczniki „MQTT” i „Matter · wersja” pokazują połączenie łącznika z brokerem i kontrolerem. Żółty komunikat u góry informuje o problemie z konfiguracją SUPLA (np. brak konta albo konflikt kanałów).
 
@@ -161,6 +161,17 @@ docker compose run --rm bridge diagnostics <node_id> > node.json
 Domyślnie ze zrzutu usuwane są: numer seryjny, identyfikator egzemplarza, etykieta i lokalizacja oraz klastry z danymi sieci i poświadczeniami. Pełny zrzut (`--full` w CLI albo `?full=1` w adresie `/api/nodes/<id>/diagnostics`) zawiera te dane - **nie publikuj go**.
 
 Format pasuje do komendy `import_test_node` kontrolera, więc zrzut można wczytać jako węzeł testowy ([rozwoj.md](rozwoj.md)).
+
+## Logi
+
+Zakładka pokazuje koniec dziennika, odświeżany co 2 s, gdy jest otwarta:
+
+- **Kontroler Matter** - tu widać parowanie krok po kroku (wiersze „commissioning step”), próby połączenia Bluetooth i utratę łączności z urządzeniami;
+- **Łącznik** - kanały, komendy, zapisy konfiguracji, start i wynik parowania.
+
+Pole „Filtr” zostawia wiersze zawierające wpisany tekst (np. `commission` albo `@1:4` dla węzła 4), a „Tylko ostrzeżenia i błędy” ukrywa resztę. Odznaczenie „Odświeżaj i przewijaj” zatrzymuje widok, żeby dało się go spokojnie przeczytać. Kody parowania i długie ciągi szesnastkowe (certyfikaty, klucze) są w panelu ukrywane.
+
+Dziennik kontrolera jest zapisywany do `data/matter/logs/` (rotacja dobowa, 7 plików) i nie trafia do kopii zapasowych. Po aktualizacji ze starszej wersji pojawi się dopiero po ponownym utworzeniu kontenerów (`docker compose up -d`), co robi też `host/update.sh`.
 
 ## Kopie zapasowe
 
