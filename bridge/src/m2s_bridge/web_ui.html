@@ -258,7 +258,12 @@
 
   <section>
     <h2>Kopie zapasowe</h2>
+    <div class="actions" style="justify-content:flex-start; margin-bottom:12px">
+      <button type="button" id="backup-now">Zrób kopię teraz</button>
+    </div>
+    <div id="backup-status"></div>
     <div id="backups"><p class="empty">Wczytywanie…</p></div>
+    <p class="hint">Kopie ręczne są tymczasowe: zostają najwyżej trzy (czwarta zastępuje najstarszą) i każda usuwa się sama po 3 dniach. Kopie z harmonogramu mają własną rotację.</p>
     <p class="hint">Kopia zawiera wszystko, czego nie da się odtworzyć: tożsamość kontrolera Matter (parowania), klucze sieci Thread, identyfikator urządzenia SUPLA i konfigurację kanałów. Zawiera sekrety — trzymaj ją w bezpiecznym miejscu. Odtwarzanie: <code>sudo ./host/restore.sh plik.tar.gz</code>.</p>
   </section>
   </div>
@@ -287,6 +292,18 @@
 <script>
 function renderBackups(state) {
   const box = $("backups");
+  const request = state.backup_request || {};
+  $("backup-now").disabled = !!request.pending && !request.stale;
+  $("backup-now").textContent = request.pending && !request.stale ? "Kopia w toku…" : "Zrób kopię teraz";
+  if (request.pending && request.stale) {
+    notice($("backup-status"), "warn", "Host nie podjął zlecenia kopii. Obsługę kopii ręcznych instaluje się raz na hoście, w katalogu projektu: sudo ./host/install-backup-timer.sh");
+  } else if (request.pending) {
+    notice($("backup-status"), "ok", "Kopia w toku - potrwa kilkanaście sekund. Kontroler Matter i połączenie z SUPLA są na ten czas zatrzymane.");
+  } else if (request.last_result && request.last_result !== "success") {
+    notice($("backup-status"), "bad", `Ostatnia kopia ręczna nie powiodła się (${request.last_result}). Szczegóły na hoście: journalctl -u m2s-backup-manual`);
+  } else {
+    notice($("backup-status"), "ok", null);
+  }
   if (!state.backups.length) {
     box.replaceChildren(el("p", "empty", "Brak kopii. Pierwsza powstanie zgodnie z harmonogramem (domyślnie codziennie o 03:30)."));
     return;
@@ -296,7 +313,8 @@ function renderBackups(state) {
     row.style.gridTemplateColumns = "1fr auto";
     const info = el("div");
     info.append(el("div", "title", new Date(b.time * 1000).toLocaleString("pl-PL")));
-    info.append(el("div", "meta", `${b.name} · ${(b.size / 1024).toFixed(0)} kB`));
+    const kind = b.manual ? `ręczna, usunie się ${new Date(b.expires * 1000).toLocaleString("pl-PL", { day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" })}` : "z harmonogramu";
+    info.append(el("div", "meta", `${kind} · ${b.name} · ${(b.size / 1024).toFixed(0)} kB`));
     const link = el("a", "button", "Pobierz");
     link.href = `/api/backups/${encodeURIComponent(b.name)}`;
     link.setAttribute("download", "");
@@ -808,6 +826,10 @@ $("commission-form").addEventListener("submit", (e) => {
     $("code").value = "";
   });
 });
+$("backup-now").onclick = () => {
+  if (confirm("Zrobić kopię zapasową teraz? Na kilkanaście sekund zatrzyma się kontroler Matter i połączenie z SUPLA; kanały wrócą same."))
+    act(() => post("/api/backups", {}), $("backup-status"));
+};
 $("device-filter").addEventListener("input", () => refresh());
 $("group-form").addEventListener("submit", (e) => {
   e.preventDefault();

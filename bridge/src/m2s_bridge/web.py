@@ -35,7 +35,14 @@ SESSION_TTL_SEC = 180 * 24 * 3600
 SESSION_RENEW_SEC = 24 * 3600  # ważność przedłużana przy wejściu do panelu, nie częściej niż raz na dobę
 SESSION_FILE_NAME = "web-sessions.json"
 MAX_SESSIONS = 200
-BACKUP_NAME = re.compile(r"m2s-backup-\d{8}-\d{6}\.tar\.gz")
+BACKUP_NAME = re.compile(r"m2s-(backup|manual)-\d{8}-\d{6}\.tar\.gz")
+# Kopia ręczna: panel zostawia zlecenie w pliku, a wykonuje je host (jednostka systemd .path z
+# host/install-backup-timer.sh). Łącznik nie ma dostępu do Dockera ani do katalogu data/.
+BACKUP_REQUEST_NAME = "backup-request"
+BACKUP_RESULT_NAME = "backup-result"
+BACKUP_STALE_SEC = 120      # po tym czasie uznajemy, że host nie obsługuje zleceń
+BACKUP_MIN_GAP_SEC = 60     # odstęp między kopiami ręcznymi (kopia zatrzymuje na chwilę kontroler)
+MANUAL_BACKUP_DAYS = 3
 MAX_UPLOAD_BYTES = 12 * 1024 * 1024  # zdjęcie kodu QR z telefonu
 LOOPBACK_HOSTS = ("127.0.0.1", "::1", "localhost")
 
@@ -136,8 +143,44 @@ def list_backups(directory: Path | None) -> list[dict[str, Any]]:
     for path in directory.iterdir():
         if BACKUP_NAME.fullmatch(path.name) and path.is_file():
             stat = path.stat()
-            items.append({"name": path.name, "size": stat.st_size, "time": int(stat.st_mtime)})
-    return sorted(items, key=lambda item: item["name"], reverse=True)
+            item: dict[str, Any] = {"name": path.name, "size": stat.st_size, "time": int(stat.st_mtime)}
+            if path.name.startswith("m2s-manual-"):
+                item["manual"] = True
+                item["expires"] = int(stat.st_mtime) + MANUAL_BACKUP_DAYS * 86400
+            items.append(item)
+    return sorted(items, key=lambda item: item["time"], reverse=True)
+
+
+def backup_request_state(config_dir: Path | None) -> dict[str, Any]:
+    """Stan zlecenia kopii ręcznej dla panelu."""
+    if config_dir is None:
+        return {"supported": False, "pending": False, "stale": False, "last_result": None}
+    pending, stale, result = False, False, None
+    try:
+        age = time.time() - (config_dir / BACKUP_REQUEST_NAME).stat().st_mtime
+        pending, stale = True, age > BACKUP_STALE_SEC
+    except OSError:
+        pass
+    try:
+        result = (config_dir / BACKUP_RESULT_NAME).read_text(encoding="utf-8").strip()[:40] or None
+    except OSError:
+        pass
+    return {"supported": True, "pending": pending, "stale": stale, "last_result": result}
+
+
+def request_backup(config_dir: Path | None, backup_dir: Path | None) -> None:
+    if config_dir is None:
+        raise ManagerError("ręczna kopia wymaga katalogu konfiguracji na dysku")
+    request = config_dir / BACKUP_REQUEST_NAME
+    state = backup_request_state(config_dir)
+    if state["pending"] and not state["stale"]:
+        raise ManagerError("kopia jest już w toku")
+    newest = max((b["time"] for b in list_backups(backup_dir) if b.get("manual")), default=0)
+    if time.time() - newest < BACKUP_MIN_GAP_SEC:
+        raise ManagerError("ostatnia kopia ręczna powstała przed chwilą - odczekaj minutę")
+    (config_dir / BACKUP_RESULT_NAME).unlink(missing_ok=True)
+    request.unlink(missing_ok=True)   # przeterminowane zlecenie: zapis od nowa wyzwala hosta ponownie
+    request.write_text(f"{int(time.time())}\n", encoding="utf-8")
 
 
 def create_app(
@@ -147,6 +190,7 @@ def create_app(
     session_file: Path | None = None,
 ) -> web.Application:
     sessions = SessionStore(password or "", session_file)
+    config_dir = manager.config_path.parent if manager.config_path else None
 
     def set_session_cookie(response: web.StreamResponse, token: str) -> None:
         response.set_cookie(SESSION_COOKIE, token, max_age=SESSION_TTL_SEC, httponly=True, samesite="Strict")
@@ -235,6 +279,7 @@ def create_app(
         data = manager.snapshot()
         data["auth"] = bool(password)
         data["backups"] = list_backups(backup_dir)
+        data["backup_request"] = backup_request_state(config_dir)
         return web.json_response(data, headers={"Cache-Control": "no-store"})
 
     async def body(request: web.Request) -> dict[str, Any]:
@@ -333,6 +378,12 @@ def create_app(
         code = await asyncio.to_thread(decode_matter_qr, photo)
         return web.json_response({"code": code})
 
+    async def backup_create(request: web.Request) -> web.Response:
+        await body(request)
+        request_backup(config_dir, backup_dir)
+        log.info("panel: zlecono ręczną kopię zapasową")
+        return web.json_response({"ok": True})
+
     async def backup_download(request: web.Request) -> web.StreamResponse:
         name = request.match_info["name"]
         # Tylko nazwy w formacie skryptu kopii — żadnych ścieżek z zewnątrz.
@@ -374,6 +425,7 @@ def create_app(
             web.get("/api/nodes/{node_id}/diagnostics", diagnostics),
             web.get("/api/backups/{name}", backup_download),
             web.post("/api/commission", commission),
+            web.post("/api/backups", backup_create),
             web.post("/api/qr", qr),
             web.post("/api/supla", supla_account),
             web.post("/api/thread-dataset", thread_dataset),

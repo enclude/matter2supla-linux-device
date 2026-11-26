@@ -187,4 +187,6 @@ Dziennik kontrolera jest zapisywany do `data/matter/logs/` (rotacja dobowa, 7 pl
 
 ![Sekcja „Kopie zapasowe”](img/panel-kopie.png)
 
-Lista kopii utworzonych przez `host/backup.sh` z przyciskiem „Pobierz”. Kopie **zawierają sekrety**, a panel nie szyfruje połączenia - pobieraj je tylko w zaufanej sieci. Szczegóły: [kopie-zapasowe.md](kopie-zapasowe.md).
+Przycisk „Zrób kopię teraz” zleca kopię ręczną: na kilkanaście sekund zatrzymuje się kontroler Matter i połączenie z SUPLA, potem kopia pojawia się na liście. Kopie ręczne są tymczasowe - zostają najwyżej trzy i każda usuwa się sama po 3 dniach; przy każdej widać, kiedy zniknie. Wymaga jednostek systemd na hoście ([kopie-zapasowe.md](kopie-zapasowe.md#kopia-ręczna-z-panelu)).
+
+Niżej lista kopii (ręcznych i z harmonogramu) z przyciskiem „Pobierz”. Kopie **zawierają sekrety**, a panel nie szyfruje połączenia - pobieraj je tylko w zaufanej sieci. Szczegóły: [kopie-zapasowe.md](kopie-zapasowe.md).

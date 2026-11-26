@@ -348,3 +348,46 @@ async def test_cloud_link_ids(tmp_path):
     await manager.set_supla_account("svr2.supla.org", "nowe@example.org")
     assert manager.config.devices[0].cloud_id is None
     await client.close()
+
+
+async def test_manual_backup_request(tmp_path):
+    import os
+    import time
+
+    manager = Manager(parse_config({}), tmp_path / "config" / "devices.yaml", tmp_path / "config" / "supla.yaml", "s", "m")
+    (tmp_path / "config").mkdir()
+    backups = tmp_path / "backups"
+    backups.mkdir()
+    client = TestClient(TestServer(create_app(manager, None, backups)))
+    await client.start_server()
+    state = (await (await client.get("/api/state")).json())["backup_request"]
+    assert state == {"supported": True, "pending": False, "stale": False, "last_result": None}
+
+    assert (await client.post("/api/backups", json={})).status == 200
+    request = tmp_path / "config" / "backup-request"
+    assert request.exists()  # zlecenie dla hosta; samą kopię robi host/backup.sh
+    assert (await (await client.get("/api/state")).json())["backup_request"]["pending"] is True
+    assert (await client.post("/api/backups", json={})).status == 400  # już w toku
+
+    # host skończył: zlecenie zdjęte, wynik zapisany, kopia ręczna na liście z datą wygaśnięcia
+    request.unlink()
+    (tmp_path / "config" / "backup-result").write_text("success\n")
+    (backups / "m2s-manual-20261126-210000.tar.gz").write_bytes(b"x" * 10)
+    (backups / "m2s-backup-20261126-033000.tar.gz").write_bytes(b"x" * 10)
+    old = time.time() - 3600
+    os.utime(backups / "m2s-backup-20261126-033000.tar.gz", (old, old))
+    data = await (await client.get("/api/state")).json()
+    assert data["backup_request"] == {"supported": True, "pending": False, "stale": False, "last_result": "success"}
+    manual, scheduled = data["backups"]
+    assert manual["manual"] is True and manual["expires"] == manual["time"] + 3 * 86400
+    assert "manual" not in scheduled
+    assert (await client.get("/api/backups/m2s-manual-20261126-210000.tar.gz")).status == 200
+    assert (await client.post("/api/backups", json={})).status == 400  # dopiero co była kopia
+
+    # zlecenie, którego host nie podjął (brak jednostki systemd): po 2 minutach można zlecić ponownie
+    os.utime(backups / "m2s-manual-20261126-210000.tar.gz", (old, old))
+    assert (await client.post("/api/backups", json={})).status == 200
+    os.utime(request, (old, old))
+    assert (await (await client.get("/api/state")).json())["backup_request"]["stale"] is True
+    assert (await client.post("/api/backups", json={})).status == 200
+    await client.close()

@@ -56,6 +56,8 @@ Skrypt uruchamia wyłącznie użytkownik - nie ma timera ani wywołania z panelu
 
 > **Instalacje sprzed wersji 0.2.0** nie mają jeszcze tego skryptu. Jednorazowo trzeba go dograć ręcznie: skopiować `host/update.sh` z repozytorium do katalogu `host/` na urządzeniu i nadać prawo wykonywania (`chmod +x host/update.sh`); w repozytorium git wystarczy `git pull`.
 
+> **Po aktualizacji z wersji 0.4.0 lub starszej** uruchom raz `sudo ./host/install-backup-timer.sh` - instaluje jednostki systemd potrzebne przyciskowi „Zrób kopię teraz” w panelu ([kopie-zapasowe.md](kopie-zapasowe.md#kopia-ręczna-z-panelu)). Harmonogram codziennych kopii zostaje bez zmian.
+
 ### Co robi, krok po kroku
 
 1. **Wersje.** Zainstalowaną odczytuje z działającego kontenera `bridge`, docelową z argumentu albo z listy wydań na GitHubie. Jeśli są równe, kończy bez zmian.

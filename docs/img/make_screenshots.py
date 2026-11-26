@@ -109,6 +109,8 @@ STATE = {
 }
 
 BACKUPS = [
+    {"name": "m2s-manual-20261126-204500.tar.gz", "size": 48310, "time": 1795722300, "manual": True,
+     "expires": 1795722300 + 3 * 86400},
     {"name": "m2s-backup-20261126-033000.tar.gz", "size": 48211, "time": 1795660200},
     {"name": "m2s-backup-20261125-033000.tar.gz", "size": 47903, "time": 1795573800},
     {"name": "m2s-backup-20261124-033000.tar.gz", "size": 47650, "time": 1795487400},
@@ -118,6 +120,7 @@ BACKUPS = [
 class FakeManager:
     def __init__(self) -> None:
         self.state = copy.deepcopy(STATE)
+        self.config_path = None  # atrapa nie ma katalogu konfiguracji
 
     def snapshot(self) -> dict:
         return copy.deepcopy(self.state)
@@ -145,7 +148,8 @@ async def main() -> None:
             page = await context.new_page()
 
             async def fake_state(route):
-                await route.fulfill(json={**manager.snapshot(), "auth": True, "backups": BACKUPS})
+                await route.fulfill(json={**manager.snapshot(), "auth": True, "backups": BACKUPS,
+                                           "backup_request": {"supported": True, "pending": False, "stale": False, "last_result": "success"}})
 
             await page.route("**/api/state", fake_state)
             return page
