@@ -45,6 +45,8 @@ Skrót dla Raspberry Pi; wersja krok po kroku, z wyjaśnieniami: [docs/instalacj
 
 3. **Panel WWW** — wpisz konto SUPLA i sparuj urządzenie kodem lub zdjęciem kodu QR: [docs/panel-www.md](docs/panel-www.md), [docs/parowanie.md](docs/parowanie.md).
 
+   ![Panel WWW — kanały SUPLA (przykładowe dane)](docs/img/panel-kanaly.png)
+
 4. **Kopia zapasowa** powstaje codziennie o 03:30; pobierz jedną od razu po pierwszym parowaniu i trzymaj poza urządzeniem: [docs/kopie-zapasowe.md](docs/kopie-zapasowe.md).
 
 Skrypt był uruchomiony na działającej instalacji (Raspberry Pi 4B): niczego nie zmienił w konfiguracji, tożsamości urządzenia ani sieci Thread, a usługi wróciły do pracy. **Pełna instalacja nim na czystym systemie nie była jeszcze sprawdzona** — gdyby zawiódł, te same kroki są opisane ręcznie w instrukcji.

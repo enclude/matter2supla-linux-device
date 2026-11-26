@@ -35,6 +35,8 @@ Dla innych urządzeń sposób wejścia w tryb parowania i resetu podaje instrukc
 
 ## Parowanie w panelu
 
+![Parowanie w toku (przykładowe dane)](img/panel-parowanie-trwa.png)
+
 1. Otwórz panel i przejdź do sekcji „Parowanie urządzenia”.
 2. Podaj kod: wpisz `MT:…` / kod numeryczny albo użyj „Zrób zdjęcie kodu QR” (telefon; panel musi być dostępny z LAN — [panel-www.md](panel-www.md#z-sieci-lan--z-hasłem)). Kod QR jest na naklejce urządzenia.
 3. Pole „Urządzenie jest już w sieci…” zostaw **odznaczone** (parowanie przez Bluetooth).

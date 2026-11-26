@@ -4,6 +4,10 @@ Panel jest częścią łącznika (`bridge`). Służy do wpisania konta SUPLA, pa
 
 Sprawdzone na Raspberry Pi: dostęp z LAN z logowaniem, zapis konta SUPLA, parowanie kodem i zdjęciem QR z telefonu, sterowanie gniazdkiem, pobieranie kopii.
 
+![Panel Matter2Supla — widok całości](img/panel.png)
+
+*Zrzuty ekranu w tym dokumencie pokazują panel na przykładowych danych (skrypt `docs/img/make_screenshots.py`), nie prawdziwą instalację.* Na telefonie panel układa się w jedną kolumnę: [zrzut](img/panel-telefon.png).
+
 ## Dostęp
 
 ### Domyślnie: tylko lokalnie
@@ -49,6 +53,8 @@ Plik `config/devices.yaml` jest także zapisywany przez łącznik (przy dopisywa
 
 ### Logowanie
 
+![Formularz logowania](img/panel-logowanie.png)
+
 - Formularz z samym hasłem; sesja trzymana w ciasteczku przez 30 dni. Restart łącznika wylogowuje wszystkich. Przycisk „Wyloguj” jest w nagłówku.
 - Dla skryptów działa też nagłówek HTTP Basic (nazwa użytkownika dowolna):
 
@@ -64,6 +70,8 @@ Znaczniki „MQTT” i „Matter · wersja” pokazują połączenie łącznika 
 
 ## Konto SUPLA
 
+![Sekcja „Konto SUPLA”](img/panel-konto-supla.png)
+
 Wpisz **serwer** (np. `svrXX.supla.org`, bez `https://` i portu — adres widać w SUPLA Cloud i w aplikacji, w ustawieniach konta) oraz **e-mail konta**, potem „Zapisz konto”.
 
 - Przed pierwszym połączeniem włącz w SUPLA Cloud dodawanie urządzeń (cloud.supla.org → „Moja SUPLA” → rejestracja urządzeń).
@@ -72,6 +80,8 @@ Wpisz **serwer** (np. `svrXX.supla.org`, bez `https://` i portu — adres widać
 - Po pierwszym połączeniu w SUPLA Cloud pojawi się urządzenie **„Matter2Supla”**. Funkcję kanału (np. „włącznik zasilania”) ustawia się w Cloud.
 
 ## Parowanie urządzenia
+
+![Sekcja „Parowanie urządzenia”](img/panel-parowanie.png)
 
 Formularz przyjmuje kod `MT:…` albo kod numeryczny. Kod można wpisać, albo odczytać ze zdjęcia: „Zrób zdjęcie kodu QR” (aparat telefonu) / „Wybierz zdjęcie z galerii”. Zdjęcie jest dekodowane lokalnie w łączniku i nigdzie nie jest zapisywane; limit rozmiaru to 12 MB (przeglądarka zmniejsza zdjęcie przed wysłaniem).
 
@@ -82,6 +92,8 @@ W rozwijanej części „Dataset sieci Thread” widać, czy kontroler ma zapisa
 Przebieg parowania, tryb parowania urządzeń i typowe niepowodzenia: [parowanie.md](parowanie.md).
 
 ## Kanały SUPLA
+
+![Sekcja „Kanały SUPLA”: gniazdko z licznikiem i światło](img/panel-kanaly.png)
 
 Lista urządzeń, które mają kanał: numer kanału, nazwa, węzeł i endpoint Matter, stan (włączone / wyłączone / niedostępne).
 
@@ -94,6 +106,8 @@ Nowo sparowane urządzenie obsługiwanego typu pojawia się tu **samo** jako kol
 > **Kanału nie da się usunąć ani zmienić jego typu** bez usunięcia całego urządzenia z SUPLA Cloud razem z historią. Wyjaśnienie: [jak-to-dziala.md](jak-to-dziala.md#trwałość-kanałów-supla).
 
 ## Urządzenia Matter bez kanału
+
+![Sekcja „Urządzenia Matter bez kanału”](img/panel-bez-kanalu.png)
 
 Sekcja pojawia się, gdy sparowane są urządzenia, które nie mają kanału SUPLA:
 
@@ -115,5 +129,7 @@ Domyślnie ze zrzutu usuwane są: numer seryjny, identyfikator egzemplarza, etyk
 Format pasuje do komendy `import_test_node` kontrolera, więc zrzut można wczytać jako węzeł testowy ([rozwoj.md](rozwoj.md)).
 
 ## Kopie zapasowe
+
+![Sekcja „Kopie zapasowe”](img/panel-kopie.png)
 
 Lista kopii utworzonych przez `host/backup.sh` z przyciskiem „Pobierz”. Kopie **zawierają sekrety**, a panel nie szyfruje połączenia — pobieraj je tylko w zaufanej sieci. Szczegóły: [kopie-zapasowe.md](kopie-zapasowe.md).
