@@ -6,7 +6,7 @@ import base64
 import pytest
 from aiohttp.test_utils import TestClient, TestServer
 
-from m2s_bridge.config import ConfigError, WebConfig, parse_config
+from m2s_bridge.config import ConfigError, WebConfig, load_config, parse_config
 from m2s_bridge.manager import Manager
 from m2s_bridge.web import check_web_security, create_app
 
@@ -328,4 +328,23 @@ async def test_logs_endpoint(tmp_path, monkeypatch):
     data = await (await client.get("/api/logs?source=matter&lines=3")).json()
     assert data["lines"] == [f"2026-11-26 20:0{i % 10}:00 INFO krok {i}" for i in (47, 48, 49)]
     assert (await client.get("/api/logs?source=inne")).status == 400
+    await client.close()
+
+
+async def test_cloud_link_ids(tmp_path):
+    manager, client = await make(tmp_path)
+    plug = manager.config.devices[0].name
+    supla_file = (tmp_path / "supla.yaml").read_text(encoding="utf-8")
+    # wklejony adres kanału; pozostałe kanały dostają kolejne numery
+    response = await client.post(
+        f"/api/devices/{plug}/cloud-id", json={"id": "https://cloud.supla.org/channels/17462", "fill_others": True}
+    )
+    assert response.status == 200
+    assert (await (await client.get("/api/state")).json())["devices"][0]["cloud_id"] == 17462
+    assert load_config(tmp_path / "devices.yaml").devices[0].cloud_id == 17462
+    assert (tmp_path / "supla.yaml").read_text(encoding="utf-8") == supla_file  # SUPLA nie jest ruszana
+    assert (await client.post(f"/api/devices/{plug}/cloud-id", json={"id": "abc"})).status == 400
+    # zmiana konta kasuje identyfikatory - na nowym koncie będą inne
+    await manager.set_supla_account("svr2.supla.org", "nowe@example.org")
+    assert manager.config.devices[0].cloud_id is None
     await client.close()

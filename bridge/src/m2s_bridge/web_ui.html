@@ -315,6 +315,8 @@ const sliderHold = {};  // nazwa urządzenia -> czas ostatniego ruchu suwakiem (
 const openRows = new Set();  // rozwinięte wiersze - lista jest przebudowywana co 2 s
 const TYPE_LABEL = { onoff: "gniazdko / przekaźnik", light_cct: "światło z regulacją bieli", meter: "licznik energii", light_group: "grupa świateł" };
 const RENAME_PROMPT = "Nazwa w panelu (lokalna, nie jest wysyłana do SUPLA Cloud). Kanał dostaje ją w SUPLA tylko przy pierwszej rejestracji, np. po zmianie konta lub serwera - istniejącej nazwy w Cloud nie zmienia:";
+const SUPLA_CLOUD = "https://cloud.supla.org";  // przekierowuje na serwer konta
+let lastState = { devices: [] };
 const ADD_CHANNEL_CONFIRM = "Dodać kanał SUPLA? Kanału nie da się później usunąć bez usunięcia całego urządzenia z SUPLA Cloud.";
 
 function timeAgo(seconds) {
@@ -414,6 +416,18 @@ function detailsBox(dev, options) {
     };
     tools.append(rename);
   }
+  if (dev.supla_channel >= 0) {
+    // Odnośnik prosto do kanału w SUPLA Cloud. Identyfikator kanału zna tylko Cloud, więc wpisuje się go raz.
+    const set = el("button", null, dev.cloud_id ? "Zmień odnośnik" : "Ustaw odnośnik do SUPLA");
+    set.onclick = () => {
+      const id = prompt("Numer kanału w SUPLA Cloud albo wklejony adres kanału (np. https://cloud.supla.org/channels/12345). Puste pole usuwa odnośnik:", dev.cloud_id || "");
+      if (id === null) return;
+      const others = id.trim() !== "" && lastState.devices.some((d) => d.name !== dev.name && d.supla_channel >= 0 && !d.cloud_id);
+      const fill = others && confirm("Uzupełnić odnośniki pozostałych kanałów kolejnymi numerami? Kanały jednego urządzenia zwykle mają w SUPLA Cloud numery po kolei; każdy odnośnik można potem poprawić osobno.");
+      act(() => post(`/api/devices/${encodeURIComponent(dev.name)}/cloud-id`, { id, fill_others: fill }));
+    };
+    tools.append(set);
+  }
   if (dev.supla_channel < 0 && dev.type !== "light_group" && options.canAdd) {
     const add = el("button", null, "Dodaj osobny kanał SUPLA");
     add.onclick = () => { if (confirm(ADD_CHANNEL_CONFIRM)) act(() => post("/api/devices", { node_id: dev.node_id, endpoint: dev.endpoint })); };
@@ -440,6 +454,14 @@ function deviceItem(dev, options = {}) {
   info.append(meta);
   const actions = el("div", "actions");
   actions.append(...commandButtons(dev));
+  if (dev.supla_channel >= 0 && dev.cloud_id) {
+    // Prosto do tego kanału w SUPLA Cloud, w nowej karcie.
+    const link = el("a", "button", "Przejdź do SUPLA");
+    link.href = `${SUPLA_CLOUD}/channels/${dev.cloud_id}`;
+    link.target = "_blank"; link.rel = "noopener noreferrer";
+    link.title = `Kanał ${dev.cloud_id} w SUPLA Cloud (nowa karta)`;
+    actions.append(link);
+  }
   const open = openRows.has(key);
   const more = el("button", "more", open ? "Zwiń" : "Szczegóły");
   more.setAttribute("aria-expanded", String(open));
@@ -633,6 +655,7 @@ function renderVersion(state) {
 }
 
 function render(state) {
+  lastState = state;
   const pills = [
     ["MQTT", state.mqtt_connected],
     ["Matter" + (state.server.version ? " · " + state.server.version.split(" ")[0] : ""), state.matter_connected],

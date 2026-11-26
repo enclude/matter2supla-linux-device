@@ -281,6 +281,19 @@ def create_app(
         await manager.device_command(request.match_info["name"], str(data.get("command", "")))
         return web.json_response({"ok": True})
 
+    async def device_cloud_id(request: web.Request) -> web.Response:
+        data = await body(request)
+        raw = str(data.get("id") or "").strip()
+        cloud_id = None
+        if raw:
+            # Przyjmujemy sam numer albo wklejony adres kanału z SUPLA Cloud.
+            match = re.fullmatch(r"(?:https?://\S*?/channels/)?(\d{1,10})/?(?:[?#]\S*)?", raw)
+            if not match:
+                raise ValueError("podaj numer kanału albo adres w postaci https://cloud.supla.org/channels/12345")
+            cloud_id = int(match.group(1))
+        await manager.set_cloud_id(request.match_info["name"], cloud_id, bool(data.get("fill_others")))
+        return web.json_response({"ok": True})
+
     async def node_name(request: web.Request) -> web.Response:
         data = await body(request)
         await manager.set_name(int(data["node_id"]), int(data.get("endpoint") or 0), str(data.get("caption", "")))
@@ -371,6 +384,7 @@ def create_app(
             web.post("/api/devices/{name}/command", device_command),
             web.post("/api/devices/{name}/caption", device_caption),
             web.post("/api/devices/{name}/identify", device_identify),
+            web.post("/api/devices/{name}/cloud-id", device_cloud_id),
             web.post("/api/devices/{name}/light", device_light),
         ]
     )

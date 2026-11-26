@@ -67,6 +67,9 @@ class Device:
     measurements: tuple[str, ...] = ()
     # Tylko typ `light_group`: światła należące do grupy jako pary (węzeł, endpoint).
     members: tuple[tuple[int, int], ...] = ()
+    # Identyfikator kanału w SUPLA Cloud (z adresu .../channels/<id>) - tylko do odnośnika w panelu.
+    # Urządzenie go nie zna, więc wpisuje się go w panelu; po zmianie konta jest kasowany.
+    cloud_id: int | None = None
 
 
 @dataclass(frozen=True)
@@ -254,6 +257,9 @@ def parse_config(raw: Any) -> Config:
                 caption=None if caption is None else str(caption),
                 measurements=_measurements(item, dev_type, where),
                 members=_targets(item.get("members"), f"{where}.members") if is_group else (),
+                cloud_id=None
+                if item.get("cloud_id") is None
+                else _require_int(item["cloud_id"], f"{where}.cloud_id", 1),
             )
         )
 
@@ -307,6 +313,8 @@ def config_to_raw(config: Config) -> dict[str, Any]:
             )
         if dev.measurements:
             item["measurements"] = list(dev.measurements)
+        if dev.cloud_id is not None:
+            item["cloud_id"] = dev.cloud_id
         devices.append(item)
     raw: dict[str, Any] = {
         "matter": {"url": config.matter.url},

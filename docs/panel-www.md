@@ -111,6 +111,7 @@ Lista urządzeń w zwartych wierszach: numer kanału, nazwa, stan (włączone / 
 
 - **Włącz / Wyłącz** - komenda idzie prosto do urządzenia; stan na liście zmienia się dopiero po potwierdzeniu z urządzenia.
 - **Znajdź** - urządzenie daje o sobie znać przez 15 s (żarówka pulsuje, gniazdko miga diodą); dla grupy robią to wszystkie jej światła. Przydaje się, gdy trzeba ustalić, która żarówka jest którym węzłem.
+- **Przejdź do SUPLA** - otwiera w nowej karcie ten kanał w SUPLA Cloud. Przycisk pojawia się po wpisaniu numeru kanału z Cloud: w szczegółach kanału „Ustaw odnośnik do SUPLA” przyjmuje numer albo wklejony adres (`https://cloud.supla.org/channels/12345`) i na życzenie uzupełnia pozostałe kanały kolejnymi numerami. Numeru kanału w Cloud urządzenie samo nie zna; po zmianie konta lub serwera odnośniki są kasowane.
 - **Szczegóły** - rozwija wiersz: suwaki jasności i bieli, rodzaj urządzenia, producent, model, wersja firmware, węzeł i endpoint Matter, kanał SUPLA, grupy, do których światło należy, oraz przyciski „Zmień nazwę” i „Diagnostyka” (patrz niżej).
 - **Zmień nazwę** - nazwa lokalna, widoczna w panelu; nie jest wysyłana do SUPLA Cloud i jej zmiana niczego w SUPLA nie rusza. Kanał dostaje ją w SUPLA tylko przy pierwszej rejestracji, czyli także po zmianie konta lub serwera - dzięki temu urządzenia od razu nazywają się tam tak jak w panelu. Nazwać można też urządzenie bez kanału (światło należące tylko do grupy, urządzenie nieobsługiwane); gdy dostanie kanał, nazwa przejdzie na ten kanał.
 

@@ -518,6 +518,30 @@ class Manager:
             # pliku - nowy kanał, zmiana konta lub serwera, start łącznika.
             await self._apply(devices, regenerate=False)
 
+    async def set_cloud_id(self, name: str, cloud_id: int | None, fill_others: bool = False) -> None:
+        """Zapisuje identyfikator kanału w SUPLA Cloud (do odnośnika w panelu).
+
+        `fill_others`: pozostałym kanałom bez identyfikatora nadaje kolejne numery względem
+        podanego. Kanały jednego urządzenia zwykle dostają w Cloud kolejne identyfikatory, ale to
+        tylko przypuszczenie - każdy można potem poprawić osobno.
+        """
+        if cloud_id is not None and not 1 <= cloud_id <= 2**31:
+            raise ManagerError("identyfikator kanału to liczba z adresu w SUPLA Cloud (…/channels/LICZBA)")
+        async with self._change_lock:
+            target = self._find(name)
+            if target.supla_channel == NO_CHANNEL:
+                raise ManagerError("to urządzenie nie ma kanału SUPLA")
+            devices = []
+            for dev in self.config.devices:
+                if dev is target:
+                    dev = dataclasses.replace(dev, cloud_id=cloud_id)
+                elif fill_others and cloud_id and dev.cloud_id is None and dev.supla_channel != NO_CHANNEL:
+                    guess = cloud_id + dev.supla_channel - target.supla_channel
+                    if guess >= 1:
+                        dev = dataclasses.replace(dev, cloud_id=guess)
+                devices.append(dev)
+            await self._apply(devices, regenerate=False)
+
     async def set_name(self, node_id: int, endpoint: int, caption: str) -> None:
         """Lokalna nazwa endpointu bez kanału SUPLA (światło z grupy, urządzenie nieobsługiwane)."""
         async with self._change_lock:
@@ -570,6 +594,13 @@ class Manager:
                     tmp.replace(self._account_path)
                 except OSError as err:
                     raise ManagerError(f"nie można zapisać danych konta: {err}") from err
+            if (server, mail) != (self._supla_server, self._supla_mail) and any(
+                d.cloud_id is not None for d in self.config.devices
+            ):
+                # Inne konto lub serwer: kanały dostaną tam nowe identyfikatory.
+                await self._apply(
+                    [dataclasses.replace(d, cloud_id=None) for d in self.config.devices], regenerate=False
+                )
             self._supla_server, self._supla_mail = server, mail
             self.supla_error = None
             self.regenerate_supla()
@@ -723,6 +754,7 @@ class Manager:
             "state": {1: "on", 0: "off"}.get(state, "unavailable"),
             # nazwa licznika wynika z nazwy gniazdka i nie jest edytowalna
             "can_identify": self.core.can_identify(dev),
+            "cloud_id": dev.cloud_id,
             "vendor": attrs.get("0/40/1"),
             "product": attrs.get("0/40/3"),
             "firmware": attrs.get("0/40/10"),
