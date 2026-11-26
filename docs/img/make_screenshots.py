@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 import copy
 import sys
+import time
 from pathlib import Path
 
 from aiohttp import web
@@ -24,6 +25,12 @@ from m2s_bridge.web import create_app
 OUT = Path(__file__).parent
 PORT = 18099
 PASSWORD = "przykladowe-haslo"
+
+NOW = time.time()
+COMMON = {"vendor": "IKEA of Sweden", "last_seen": NOW, "can_identify": True, "groups": []}
+PLUG = {**COMMON, "product": "GRILLPLATS Plug", "firmware": "1.4.6"}
+BULB_E27 = {**COMMON, "product": "KAJPLATS E27 WS globe 1521lm", "firmware": "1.1.0"}
+BULB_GU10 = {**COMMON, "product": "KAJPLATS GU10 WS 575lm", "firmware": "1.1.0"}
 
 STATE = {
     "mqtt_connected": True,
@@ -40,23 +47,37 @@ STATE = {
     "supla": {"server": "svr1.supla.org", "mail": "supla@zjawa.tech"},
     "supla_error": None,
     "devices": [
-        {"name": "grillplats_plug_2", "caption": "Gniazdko — biurko", "node_id": "2", "endpoint": 1,
-         "type": "onoff", "supla_channel": 0, "state": "on", "caption_linked": False},
-        {"name": "kajplats_e27_3", "caption": "Lampa — salon", "node_id": "3", "endpoint": 1,
+        {"name": "grillplats_plug_2", "caption": "Gniazdko - biurko", "node_id": "2", "endpoint": 1,
+         "type": "onoff", "supla_channel": 0, "state": "on", "caption_linked": False, **PLUG},
+        {"name": "kajplats_e27_3", "caption": "Lampa - salon", "node_id": "3", "endpoint": 1,
          "type": "light_cct", "supla_channel": 1, "state": "on", "caption_linked": False,
-         "brightness": 65, "temperature": 30},
-        {"name": "grillplats_plug_2_meter", "caption": "Gniazdko — biurko — licznik", "node_id": "2",
+         "brightness": 65, "temperature": 30, **BULB_E27},
+        {"name": "grillplats_plug_2_meter", "caption": "Gniazdko - biurko - licznik", "node_id": "2",
          "endpoint": 2, "type": "meter", "supla_channel": 2, "state": "measuring", "caption_linked": True,
-         "meter": {"voltage": 236.8, "current": 0.104, "power": 14.6, "energy": 1.273}},
-        {"name": "grupa_3", "caption": "Żyrandol - jadalnia", "node_id": "0", "endpoint": 0,
+         "meter": {"voltage": 236.8, "current": 0.104, "power": 14.6, "energy": 1.273},
+         **{**PLUG, "can_identify": False}},
+        {"name": "grupa_1", "caption": "Żyrandol - jadalnia", "node_id": "0", "endpoint": 0,
          "type": "light_group", "supla_channel": 3, "state": "on", "caption_linked": False,
-         "brightness": 80, "temperature": 45, "members_available": 2,
-         "members": [{"node_id": "5", "endpoint": 1}, {"node_id": "6", "endpoint": 1}]},
+         "brightness": 80, "temperature": 45, "members_available": 2, "can_identify": True,
+         "vendor": None, "product": None, "firmware": None, "last_seen": NOW, "groups": [],
+         "members": [
+             {"node_id": "5", "endpoint": 1, "device": {
+                 "name": "kajplats_gu10_ws_575lm_5", "caption": "KAJPLATS GU10 WS 575lm", "node_id": "5", "endpoint": 1,
+                 "type": "light_cct", "supla_channel": -1, "state": "on", "caption_linked": False,
+                 "brightness": 80, "temperature": 45, **{**BULB_GU10, "groups": ["Żyrandol - jadalnia"]}}},
+             {"node_id": "6", "endpoint": 1, "device": {
+                 "name": "kajplats_gu10_ws_575lm_6", "caption": "KAJPLATS GU10 WS 575lm", "node_id": "6", "endpoint": 1,
+                 "type": "light_cct", "supla_channel": -1, "state": "on", "caption_linked": False,
+                 "brightness": 80, "temperature": 45, **{**BULB_GU10, "groups": ["Żyrandol - jadalnia"]}}},
+         ]},
+        {"name": "grillplats_plug_7", "caption": "Gniazdko - choinka", "node_id": "7", "endpoint": 1,
+         "type": "onoff", "supla_channel": 4, "state": "unavailable", "caption_linked": False,
+         **{**PLUG, "last_seen": NOW - 3 * 3600, "can_identify": False}},
     ],
     "lights": [
-        {"node_id": "3", "endpoint": 1, "label": "Lampa — salon", "available": True, "supla_channel": 1},
-        {"node_id": "5", "endpoint": 1, "label": "KAJPLATS E27 WS globe 1521lm", "available": True, "supla_channel": None},
-        {"node_id": "6", "endpoint": 1, "label": "KAJPLATS E27 WS globe 1521lm", "available": True, "supla_channel": None},
+        {"node_id": "3", "endpoint": 1, "label": "Lampa - salon", "available": True, "supla_channel": 1},
+        {"node_id": "5", "endpoint": 1, "label": "KAJPLATS GU10 WS 575lm", "available": True, "supla_channel": None},
+        {"node_id": "6", "endpoint": 1, "label": "KAJPLATS GU10 WS 575lm", "available": True, "supla_channel": None},
     ],
     "candidates": [
         {"node_id": "4", "available": True, "vendor": "IKEA of Sweden", "product": "TIMMERFLOTTE temp/hmd sensor",
@@ -121,6 +142,9 @@ async def main() -> None:
             await page.click(f'.tabs button[data-tab="{tab}"]')
             await page.locator(selector).screenshot(path=OUT / f"{name}.png")
 
+        await page.click('.tabs button[data-tab="kanaly"]')
+        await page.locator("#devices .item >> nth=2").locator("button.more").click()  # szczegóły światła
+        await page.wait_for_timeout(400)
         await shot("kanaly", "#tab-kanaly section >> nth=0", "panel-kanaly")
         await shot("kanaly", "#candidates-section", "panel-bez-kanalu")
         await page.click('.tabs button[data-tab="grupy"]')

@@ -26,6 +26,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 from typing import Any, Awaitable, Callable, Protocol
 
 from . import light, meter
@@ -78,6 +79,8 @@ class BridgeCore:
         self._matter: CommandSender | None = None
         self._nodes: dict[int, dict[str, Any]] = {}
         self._published: dict[str, str] = {}
+        # Kiedy węzeł ostatnio dał znak życia (czas systemowy); przetrwa ponowne połączenie z kontrolerem.
+        self._last_seen: dict[int, float] = {}
         self._lock = asyncio.Lock()
         self.set_devices(config.devices)
 
@@ -216,6 +219,8 @@ class BridgeCore:
             return None
         node_id = data["node_id"]
         attributes = data.get("attributes")
+        if data.get("available"):
+            self._last_seen[node_id] = time.time()
         self._nodes[node_id] = {
             "available": bool(data.get("available")),
             "attributes": dict(attributes) if isinstance(attributes, dict) else {},
@@ -274,6 +279,7 @@ class BridgeCore:
                 if node is not None:
                     node["attributes"][str(data[1])] = data[2]
                     node_id = data[0]
+                    self._last_seen[node_id] = time.time()
         if node_id is not None and node_id in self._by_node:
             await self._publish_devices(self._by_node[node_id], force=False)
 
@@ -304,6 +310,10 @@ class BridgeCore:
                 command = "Off" if self.state_of(dev) == 1 else "On"
             return await self._fan_out(dev, lambda member: self._invoke(member, ONOFF_CLUSTER, command))
         return await self._invoke(dev, ONOFF_CLUSTER, command)
+
+    def last_seen(self, node_id: int) -> float | None:
+        """Czas ostatniego znaku życia węzła (sekundy epoki) albo None, gdy nie było go od startu łącznika."""
+        return self._last_seen.get(node_id)
 
     def can_identify(self, dev: Device) -> bool:
         """Czy urządzenie (albo któreś światło grupy) ma klaster Identify."""

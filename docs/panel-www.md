@@ -105,13 +105,18 @@ Przebieg parowania, tryb parowania urządzeń i typowe niepowodzenia: [parowanie
 
 ## Kanały SUPLA
 
-![Sekcja „Kanały SUPLA”: gniazdko z licznikiem i światło](img/panel-kanaly.png)
+![Sekcja „Kanały SUPLA”: gniazdko z licznikiem, rozwinięte światło i grupa ze swoimi światłami](img/panel-kanaly.png)
 
-Lista urządzeń, które mają kanał: numer kanału, nazwa, węzeł i endpoint Matter, stan (włączone / wyłączone / niedostępne).
+Lista urządzeń w zwartych wierszach: numer kanału, nazwa, stan (włączone / wyłączone / pomiar / niedostępne) i najważniejsza wartość - jasność światła, pomiary licznika, liczba świateł grupy. Przy urządzeniu niedostępnym widać, kiedy ostatnio dało znak życia.
 
 - **Włącz / Wyłącz** - komenda idzie prosto do urządzenia; stan na liście zmienia się dopiero po potwierdzeniu z urządzenia.
-- **Nazwa** - podpis kanału. SUPLA przyjmuje go tylko przy pierwszej rejestracji kanału; późniejsza zmiana w panelu nie zmieni nazwy w Cloud.
-- **Diagnostyka** - zrzut atrybutów węzła (patrz niżej).
+- **Znajdź** - urządzenie daje o sobie znać przez 15 s (żarówka pulsuje, gniazdko miga diodą); dla grupy robią to wszystkie jej światła. Przydaje się, gdy trzeba ustalić, która żarówka jest którym węzłem.
+- **Szczegóły** - rozwija wiersz: suwaki jasności i bieli, rodzaj urządzenia, producent, model, wersja firmware, węzeł i endpoint Matter, kanał SUPLA, grupy, do których światło należy, oraz przyciski „Zmień nazwę” i „Diagnostyka” (patrz niżej).
+- **Zmień nazwę** - podpis kanału. SUPLA przyjmuje go tylko przy pierwszej rejestracji kanału; późniejsza zmiana w panelu nie zmieni nazwy w Cloud.
+
+Pod urządzeniem, z wcięciem, stoją kanały i urządzenia od niego zależne: licznik energii pod swoim gniazdkiem, a pod grupą wszystkie jej światła (także te bez własnego kanału - można nimi sterować pojedynczo, a w szczegółach dodać im osobny kanał).
+
+Gdy kanałów jest więcej, nad listą pojawia się pole „Szukaj”: zawęża ją po nazwie, modelu, numerze węzła lub kanału i stanie (np. `niedostępne`).
 
 Nowo sparowane urządzenie obsługiwanego typu pojawia się tu **samo** jako kolejny kanał, a `supla-device` restartuje się z nową konfiguracją. Automat można wyłączyć (`auto_add: false` w `config/devices.yaml`) - wtedy kanał dodaje się przyciskiem „Dodaj kanał” na liście urządzeń bez kanału.
 
@@ -146,7 +151,9 @@ Sekcja pojawia się, gdy sparowane są urządzenia, które nie mają kanału SUP
 - typy jeszcze nieobsługiwane (np. czujniki) - można je sparować i pobrać diagnostykę, na podstawie której dopisuje się obsługę;
 - światła z regulacją bieli przy `lights_as_channels: false` - bez kanału SUPLA, ale z przyciskami włącz/wyłącz oraz suwakami jasności i bieli. Domyślnie takie światło dostaje kanał „ściemniacz CCT” i te same suwaki są w sekcji kanałów.
 
-- urządzenia sparowane z wyborem „Bez kanału SUPLA” oraz światła należące tylko do grupy - mają przycisk „Dodaj kanał”, a światła także suwaki.
+- urządzenia sparowane z wyborem „Bez kanału SUPLA” - mają przycisk „Dodaj kanał”, a światła także suwaki w szczegółach.
+
+Światła należące do grupy nie są tu powtarzane - stoją pod swoją grupą w sekcji kanałów.
 
 Kanał dla typu nieobsługiwanego powstaje dopiero po dodaniu obsługi danego typu, właśnie dlatego, że później nie da się go zmienić.
 

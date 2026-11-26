@@ -173,7 +173,10 @@ async def test_group_is_one_channel_and_singles_stay(paths):
     lock = json.loads((paths[1].parent / "channels.lock.json").read_text())["channels"]
     assert lock["1"]["type"] == "MatterLight"
     snapshot = manager.snapshot()
-    assert snapshot["devices"][1]["members"] == [{"node_id": "3", "endpoint": 1}]
+    member = snapshot["devices"][1]["members"][0]
+    assert (member["node_id"], member["endpoint"]) == ("3", 1)
+    assert member["device"]["name"] == manager.config.devices[0].name and member["device"]["groups"] == ["Salon"]
+    assert snapshot["devices"][1]["last_seen"] is not None and snapshot["devices"][0]["product"]
     assert snapshot["devices"][1]["members_available"] == 1
     assert snapshot["lights"] == [
         {"node_id": "3", "endpoint": 1, "label": manager.config.devices[0].caption, "available": True, "supla_channel": 0}
@@ -202,6 +205,9 @@ async def test_pairing_into_group_creates_no_single_channel(paths):
     # światło z samej grupy da się nadal sterować z panelu i dodać ręcznie jako osobny kanał
     candidate = next(c for c in manager.snapshot()["candidates"] if c["node_id"] == "4")
     assert candidate["supported"] is False and candidate["manual"] is True and candidate["control"]
+    assert candidate["in_group"] is True
+    grouped = next(d for d in manager.snapshot()["devices"] if d["type"] == "light_group")
+    assert grouped["members"][0]["device"]["supla_channel"] == -1  # światło tylko w grupie: sterowane pod grupą
     dev = await manager.add_device(4, 1)
     assert dev.type == "light_cct" and dev.supla_channel == 2
     assert manager._find_group(group.name).members == ((4, 1),)

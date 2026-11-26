@@ -209,7 +209,7 @@ class Manager:
                 if in_groups:
                     names = ", ".join(f"„{g.caption or g.name}”" for g in in_groups)
                     result.append(
-                        {**entry, "supported": False, "manual": can_be_channel, "reason": f"w grupie {names}, bez osobnego kanału"}
+                        {**entry, "supported": False, "manual": can_be_channel, "in_group": True, "reason": f"w grupie {names}, bez osobnego kanału"}
                     )
                 elif can_be_channel and (node_id, endpoint) in self.config.no_channel:
                     result.append(
@@ -646,7 +646,30 @@ class Manager:
     # --- dane dla panelu ----------------------------------------------------
 
     def _device_view(self, dev: Device) -> dict[str, Any]:
+        view = self._plain_view(dev)
+        if dev.type == GROUP_TYPE:
+            # Światła grupy z własnym widokiem (stan, suwaki, nazwa do komend) - panel pokazuje je pod grupą.
+            by_target = {
+                (d.node_id, d.endpoint): d for d in self.core.devices if d.type == "light_cct"
+            }
+            members = []
+            for node_id, endpoint in dev.members:
+                member = by_target.get((node_id, endpoint))
+                members.append(
+                    {
+                        "node_id": str(node_id),
+                        "endpoint": endpoint,
+                        "device": self._plain_view(member) if member else None,
+                    }
+                )
+            view["members"] = members
+            seen = [t for n, _ in dev.members if (t := self.core.last_seen(n)) is not None]
+            view["last_seen"] = max(seen) if seen else None
+        return view
+
+    def _plain_view(self, dev: Device) -> dict[str, Any]:
         state = self.core.state_of(dev)
+        attrs = self.core.nodes.get(dev.node_id, {}).get("attributes", {})
         view: dict[str, Any] = {
             "name": dev.name,
             "caption": dev.caption or "",
@@ -658,6 +681,13 @@ class Manager:
             "state": {1: "on", 0: "off"}.get(state, "unavailable"),
             # nazwa licznika wynika z nazwy gniazdka i nie jest edytowalna
             "can_identify": self.core.can_identify(dev),
+            "vendor": attrs.get("0/40/1"),
+            "product": attrs.get("0/40/3"),
+            "firmware": attrs.get("0/40/10"),
+            "last_seen": self.core.last_seen(dev.node_id),
+            "groups": [g.caption or g.name for g in self._groups_of((dev.node_id, dev.endpoint))]
+            if dev.type == "light_cct"
+            else [],
             "caption_linked": dev.type == "meter"
             and any(d.type == "onoff" and d.node_id == dev.node_id for d in self.config.devices),
         }
@@ -666,7 +696,6 @@ class Manager:
             view["brightness"] = current["brightness"] if current else None
             view["temperature"] = current["temperature"] if current else None
         if dev.type == GROUP_TYPE:
-            view["members"] = [{"node_id": str(n), "endpoint": e} for n, e in dev.members]
             view["members_available"] = sum(
                 1 for member in self.core.members_of(dev) if self.core.light_state(member) is not None
             )
