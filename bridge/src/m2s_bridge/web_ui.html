@@ -129,6 +129,7 @@
   </div>
 
   <div class="tab" id="tab-parowanie" role="tabpanel" hidden>
+  <div class="notice warn" id="pairing-account-notice" hidden>Konto SUPLA nie jest jeszcze skonfigurowane. Urządzenia można parować, ale kanały pojawią się w SUPLA dopiero po wpisaniu konta w zakładce <a href="#system">System</a>.</div>
   <section>
     <h2>Parowanie urządzenia</h2>
     <form id="commission-form">
@@ -242,6 +243,7 @@ function meterText(values) {
 }
 let busy = false;
 let suplaDirty = false;
+let firstState = true;
 
 async function post(path, payload) {
   const response = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
@@ -483,6 +485,15 @@ function render(state) {
   renderCounts(state);
   renderBackups(state);
   renderVersion(state);
+  const account = Boolean(state.supla.server && state.supla.mail);
+  $("pairing-account-notice").hidden = account;
+  if (firstState) {
+    // Tylko przy pierwszym wczytaniu i bez zakładki w adresie: bez konta SUPLA zaczynamy od formularza konta,
+    // a na telefonie (ekran dotykowy i wąskie okno) od parowania, bo tam robi się zdjęcie kodu QR.
+    firstState = false;
+    const phone = matchMedia("(pointer: coarse) and (max-width: 700px)").matches;
+    if (!location.hash) showTab(!account ? "system" : phone ? "parowanie" : "kanaly");
+  }
   if (!suplaDirty && document.activeElement.id !== "supla-server" && document.activeElement.id !== "supla-mail") {
     $("supla-server").value = state.supla.server || "";
     $("supla-mail").value = state.supla.mail || "";
