@@ -14,6 +14,7 @@ from m2s_bridge.manager import Manager, ManagerError
 from m2s_bridge.matter_client import MatterError
 from m2s_bridge.supla_config import build_supla_config
 
+from conftest import make_node
 from test_light import bulb_node
 from test_manager import FakeClient, FakeMqtt
 
@@ -240,3 +241,20 @@ async def test_removed_member_does_not_get_channel_by_itself(paths):
     assert manager.config.no_channel == ()
     saved = yaml.safe_load(paths[0].read_text(encoding="utf-8"))
     assert saved["devices"][0]["members"] == [{"node_id": 3, "endpoint": 1}]
+
+
+async def test_group_accepts_only_its_own_kind_of_device(paths):
+    # Grupa jest jednorodna: ściemniacz z regulacją bieli. Gniazdko (ani inny rodzaj światła) nie wejdzie.
+    manager = await make_manager(paths, node(3), make_node(7, on=True))
+    group = await manager.create_group("Salon", [(3, 1)])
+    with pytest.raises(ManagerError):
+        await manager.set_group_members(group.name, [(3, 1), (7, 1)])
+    with pytest.raises(ManagerError):
+        await manager.create_group("Mieszana", [(7, 1)])
+    assert [light["node_id"] for light in manager.snapshot()["lights"]] == ["3"]
+    # parowanie gniazdka z wyborem grupy: do grupy nie trafia, dostaje zwykły kanał
+    manager.matter_client.result = make_node(8, on=False)
+    manager.start_commission("MT:ABC", False, f"group:{group.name}")
+    await manager._commission_task
+    assert "nie trafiło do grupy" in manager.commission_state["message"]
+    assert manager._find_group(group.name).members == ((3, 1),)
