@@ -23,7 +23,8 @@
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, "Segoe UI", sans-serif; }
   main { max-width: 860px; margin: 0 auto; padding: 24px 16px 48px; }
-  body.wide main { max-width: min(1800px, 100%); }  /* zakładka Logi: cała szerokość okna */
+  body[data-tab=logi] main { max-width: min(1800px, 100%); }  /* dziennik: cała szerokość okna */
+  body[data-tab=kanaly] main { max-width: 1240px; }            /* lista urządzeń w kolumnach */
   header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px; margin-bottom: 20px; }
   h1 { font-size: 22px; margin: 0; letter-spacing: -0.01em; }
   h2 { font-size: 15px; margin: 0 0 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; }
@@ -79,31 +80,55 @@
   summary { cursor: pointer; font-weight: 600; font-size: 13px; }
   details > div { margin-top: 12px; }
   #group-form { margin-top: 16px; }
-  #device-filter { margin-bottom: 12px; }
-  .item { padding: 10px 0; border-top: 1px solid var(--line); }
-  .item:first-child { border-top: 0; padding-top: 0; }
-  .item:last-child { padding-bottom: 0; }
-  .item.child { margin-left: 28px; padding: 8px 0 8px 14px; border-top: 0; border-left: 2px solid var(--line); }
+  #device-filter { margin-bottom: 12px; max-width: 420px; }
+  .item { padding: 10px 8px; border-top: 1px solid var(--line); border-radius: 6px; }
+  .item:hover { background: color-mix(in srgb, var(--line) 28%, transparent); }
+  .item:last-child { padding-bottom: 10px; }
+  .item.child .line { grid-template-columns: 44px minmax(156px, 1fr) minmax(160px, 1.3fr) 432px; }
+  .item.child { margin-left: 28px; padding: 8px 8px 8px 14px; border-top: 0; border-left: 2px solid var(--line); border-radius: 0 6px 6px 0; }
   .item.child .title { font-weight: 500; }
   .item.child .chan { font-weight: 500; color: var(--muted); }
   .item.unavailable .title { color: var(--muted); }
-  .line { display: grid; grid-template-columns: 44px 1fr auto; gap: 12px; align-items: center; }
-  .line > :first-child:not(.chan) { grid-column: 1 / 3; }
-  .item .meta { font-size: 13px; }
-  .item .state { font-size: 13px; }
+  .line { display: grid; grid-template-columns: 44px minmax(190px, 1fr) minmax(160px, 1.3fr) 432px; grid-template-areas: "chan info sum actions"; gap: 4px 14px; align-items: center; }
+  .line > .chan { grid-area: chan; } .line > .info { grid-area: info; } .line > .sum { grid-area: sum; } .line > .actions { grid-area: actions; }
+  .line .title { cursor: pointer; }
+  .line .title:hover { text-decoration: underline; }
+  .line .state { font-size: 13px; }
+  .line .sum { font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+  .line .actions { align-items: center; flex-wrap: nowrap; }
+  .line.head { padding: 0 8px 8px; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--line); }
+  .line.head > div:nth-child(1) { grid-area: chan; } .line.head > div:nth-child(2) { grid-area: info; } .line.head > div:nth-child(3) { grid-area: sum; } .line.head > div:nth-child(4) { grid-area: actions; }
+  .line.head + .item { border-top: 0; }
   button.more { color: var(--muted); }
-  .details { margin: 12px 0 4px 56px; display: grid; gap: 12px; }
+  .switch { position: relative; display: inline-block; width: 42px; height: 24px; margin: 0 4px 0 0; flex: none; }
+  .switch input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+  .switch input:disabled { cursor: default; }
+  .switch .knob { position: absolute; inset: 0; border-radius: 99px; background: var(--line); transition: background 0.15s; pointer-events: none; }
+  .switch .knob::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: var(--card); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3); transition: transform 0.15s; }
+  .switch input:checked + .knob { background: var(--accent); }
+  .switch input:checked + .knob::after { transform: translateX(18px); }
+  .switch input:disabled + .knob { opacity: 0.45; }
+  .switch input:focus-visible + .knob { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .details { margin: 12px 0 4px 58px; display: grid; grid-template-columns: minmax(280px, 1.2fr) minmax(260px, 1fr); gap: 16px 40px; align-items: start; }
+  .details .controls { display: grid; gap: 14px; }
   .details .sliders { grid-column: auto; }
-  .details .actions { justify-content: flex-start; }
+  .details .actions { justify-content: flex-start; flex-wrap: wrap; }
   .facts { display: grid; grid-template-columns: max-content 1fr; gap: 3px 16px; margin: 0; font-size: 13px; }
   .facts dt { color: var(--muted); }
   .facts dd { margin: 0; overflow-wrap: anywhere; }
-  @media (max-width: 560px) { .line { grid-template-columns: 44px 1fr; } .line .actions { grid-column: 1 / -1; justify-content: flex-start; } .details { margin-left: 0; } }
-  .logbar { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin-bottom: 12px; }
-  .logbar select, .logbar input[type=text] { width: auto; flex: 1 1 220px; }
-  .logbar .check { margin: 0; align-items: center; }
-  .logbar .check input { margin-top: 0; }
-  #log-view { margin: 0; height: 68vh; overflow: auto; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre; }
+  @media (max-width: 979px) {
+    .line, .item.child .line { grid-template-columns: 44px 1fr auto; grid-template-areas: "chan info actions" "chan sum actions"; }
+    .line.head { display: none; }
+    .line.head + .item { border-top: 0; }
+    .details { grid-template-columns: 1fr; }
+    #device-filter { max-width: none; }
+  }
+  @media (max-width: 560px) {
+    .line, .item.child .line { grid-template-columns: 44px 1fr; grid-template-areas: "chan info" "chan sum" "actions actions"; }
+    .line .actions { justify-content: flex-start; flex-wrap: wrap; margin-top: 4px; }
+    .details { margin-left: 0; }
+  }
+  @media (prefers-reduced-motion: reduce) { .switch .knob, .switch .knob::after { transition: none; } }
   @media (max-width: 560px) { .row { grid-template-columns: 44px 1fr; } .actions { grid-column: 1 / -1; justify-content: flex-start; } }
 </style>
 </head>
@@ -330,15 +355,20 @@ function timeAgo(seconds) {
 }
 
 function commandButtons(dev) {
-  // Włącz / Wyłącz / Znajdź - zawsze widoczne w wierszu.
+  // Przełącznik i „Znajdź” - zawsze widoczne w wierszu.
   const buttons = [];
   if (dev.type === "meter") return buttons;  // licznik nie przyjmuje komend
-  for (const [command, label] of [["on", "Włącz"], ["off", "Wyłącz"]]) {
-    const button = el("button", null, label);
-    button.disabled = dev.state === "unavailable" || dev.state === command;
-    button.onclick = () => act(() => post(`/api/devices/${encodeURIComponent(dev.name)}/command`, { command }));
-    buttons.push(button);
-  }
+  // Jeden przełącznik pokazuje stan i go zmienia; faktyczny stan wraca z urządzenia przy odświeżeniu.
+  const toggle = el("label", "switch");
+  const input = el("input");
+  input.type = "checkbox"; input.setAttribute("role", "switch");
+  input.checked = dev.state === "on";
+  input.disabled = dev.state === "unavailable";
+  input.setAttribute("aria-label", (dev.state === "on" ? "Wyłącz: " : "Włącz: ") + (dev.caption || dev.name));
+  input.onchange = () => act(() => post(`/api/devices/${encodeURIComponent(dev.name)}/command`, { command: input.checked ? "on" : "off" }));
+  toggle.title = dev.state === "unavailable" ? "Urządzenie niedostępne" : (dev.state === "on" ? "Wyłącz" : "Włącz");
+  toggle.append(input, el("span", "knob"));
+  buttons.push(toggle);
   if (dev.can_identify) {
     // Pomaga znaleźć konkretne urządzenie: żarówka pulsuje, gniazdko miga diodą.
     const find = el("button", null, "Znajdź");
@@ -379,7 +409,7 @@ function summary(dev) {
     const title = dev.caption || dev.product || dev.name;
     parts.push(dev.product && dev.product !== title ? dev.product : `węzeł ${dev.node_id}`);
   }
-  if (dev.state === "unavailable") parts.push("ostatnio: " + timeAgo(dev.last_seen));
+  if (dev.state === "unavailable") parts.push("ostatnio widziane: " + timeAgo(dev.last_seen));
   return parts.join(" · ");
 }
 
@@ -391,7 +421,8 @@ function searchText(dev) {
 
 function detailsBox(dev, options) {
   const box = el("div", "details");
-  if (dev.type === "light_cct" || dev.type === "light_group") box.append(sliders(dev));
+  const left = el("div", "controls");
+  if (dev.type === "light_cct" || dev.type === "light_group") left.append(sliders(dev));
   const facts = [["Rodzaj", TYPE_LABEL[dev.type]], ["Nazwa techniczna", dev.name]];
   if (dev.type !== "light_group") {
     facts.push(["Urządzenie", [dev.vendor, dev.product].filter(Boolean).join(" · ") || "?"]);
@@ -403,7 +434,6 @@ function detailsBox(dev, options) {
   facts.push(["Ostatnio widziane", dev.state === "unavailable" ? timeAgo(dev.last_seen) : "teraz dostępne"]);
   const list = el("dl", "facts");
   for (const [term, value] of facts) list.append(el("dt", null, term), el("dd", null, value));
-  box.append(list);
 
   const tools = el("div", "actions");
   if (!options.placeholder) {
@@ -434,7 +464,8 @@ function detailsBox(dev, options) {
     tools.append(add);
   }
   if (dev.type !== "light_group") tools.append(diagLink(dev.node_id));
-  box.append(tools);
+  left.append(tools);
+  box.append(left, list);
   return box;
 }
 
@@ -445,13 +476,12 @@ function deviceItem(dev, options = {}) {
   const line = el("div", "line");
   const chan = el("div", "chan", dev.supla_channel < 0 ? "–" : String(dev.supla_channel));
   chan.append(el("small", null, "kanał"));
-  const info = el("div");
-  info.append(el("div", "title", dev.caption || dev.product || dev.name));
-  const meta = el("div", "meta");
-  meta.append(el("span", "state " + dev.state, STATE_LABEL[dev.state]));
-  const text = summary(dev);
-  if (text) meta.append(" · " + text);
-  info.append(meta);
+  const toggleDetails = () => { if (openRows.has(key)) openRows.delete(key); else openRows.add(key); refresh(); };
+  const info = el("div", "info");
+  const title = el("div", "title", dev.caption || dev.product || dev.name);
+  title.onclick = toggleDetails;
+  info.append(title, el("div", "state " + dev.state, STATE_LABEL[dev.state]));
+  const sum = el("div", "sum", summary(dev));
   const actions = el("div", "actions");
   actions.append(...commandButtons(dev));
   if (dev.supla_channel >= 0 && dev.cloud_id) {
@@ -465,9 +495,9 @@ function deviceItem(dev, options = {}) {
   const open = openRows.has(key);
   const more = el("button", "more", open ? "Zwiń" : "Szczegóły");
   more.setAttribute("aria-expanded", String(open));
-  more.onclick = () => { if (openRows.has(key)) openRows.delete(key); else openRows.add(key); refresh(); };
+  more.onclick = toggleDetails;
   actions.append(more);
-  line.append(chan, info, actions);
+  line.append(chan, info, sum, actions);
   item.append(line);
   if (open) item.append(detailsBox(dev, options));
   return item;
@@ -498,7 +528,9 @@ function renderDevices(state) {
     if (needle && !searchText(dev).includes(needle) && !children.some((c) => searchText(c.dev).includes(needle))) continue;
     items.push(deviceItem(dev), ...children.map((c) => deviceItem(c.dev, { child: true, key: c.key, canAdd: c.canAdd, placeholder: c.placeholder })));
   }
-  box.replaceChildren(...(items.length ? items : [el("p", "empty", "Żaden kanał nie pasuje do filtra.")]));
+  const head = el("div", "line head");
+  head.append(el("div", null, "Kanał"), el("div", null, "Nazwa i stan"), el("div", null, "Informacje"), el("div", null, ""));
+  box.replaceChildren(...(items.length ? [head, ...items] : [el("p", "empty", "Żaden kanał nie pasuje do filtra.")]));
 }
 
 function renderCandidates(state) {
@@ -510,10 +542,13 @@ function renderCandidates(state) {
     if (c.control) return deviceItem(c.control, { key: "c/" + c.control.name, canAdd: true });
     const item = el("div", "item");
     const line = el("div", "line");
-    line.append(el("div", "chan", "–"));
-    const info = el("div");
+    const chan = el("div", "chan", "–");
+    chan.append(el("small", null, "kanał"));
+    line.append(chan);
+    const info = el("div", "info");
     info.append(el("div", "title", c.caption || c.product || "Urządzenie Matter"));
-    info.append(el("div", "meta", [c.caption ? c.product : null, `${c.vendor || "?"}`, `węzeł ${c.node_id}` + (c.endpoint != null ? `, endpoint ${c.endpoint}` : ""), c.reason].filter(Boolean).join(" · ")));
+    info.append(el("div", "meta", c.reason || ""));
+    const sum = el("div", "sum", [c.caption ? c.product : null, `${c.vendor || "?"}`, `węzeł ${c.node_id}` + (c.endpoint != null ? `, endpoint ${c.endpoint}` : "")].filter(Boolean).join(" · "));
     const actions = el("div", "actions");
     if (c.supported || c.manual) {
       const add = el("button", c.supported ? "primary" : null, "Dodaj kanał");
@@ -526,7 +561,7 @@ function renderCandidates(state) {
       if (caption !== null) act(() => post("/api/names", { node_id: c.node_id, endpoint: c.endpoint || 0, caption }));
     };
     actions.append(rename, diagLink(c.node_id));
-    line.append(info, actions);
+    line.append(info, sum, actions);
     item.append(line);
     return item;
   }));
@@ -558,7 +593,7 @@ function showTab(name, remember) {
   // Zakładka jest w adresie (#grupy), więc odświeżenie strony i przycisk „wstecz” ją zachowują.
   if (!TABS.includes(name)) name = TABS[0];
   for (const tab of TABS) $("tab-" + tab).hidden = tab !== name;
-  document.body.classList.toggle("wide", name === "logi");
+  document.body.dataset.tab = name;
   for (const button of document.querySelectorAll(".tabs button")) button.setAttribute("aria-selected", String(button.dataset.tab === name));
   if (remember && location.hash.slice(1) !== name) history.replaceState(null, "", "#" + name);
 }

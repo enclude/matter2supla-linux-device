@@ -132,7 +132,7 @@ async def main() -> None:
             await page.wait_for_selector("footer a")
             await page.wait_for_timeout(800)
 
-        page = await open_page(900, 520)
+        page = await open_page(1320, 640)
         await page.goto(base + "/login")
         await page.screenshot(path=OUT / "panel-logowanie.png")
 

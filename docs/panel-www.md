@@ -107,9 +107,9 @@ Przebieg parowania, tryb parowania urządzeń i typowe niepowodzenia: [parowanie
 
 ![Sekcja „Kanały SUPLA”: gniazdko z licznikiem, rozwinięte światło i grupa ze swoimi światłami](img/panel-kanaly.png)
 
-Lista urządzeń w zwartych wierszach: numer kanału, nazwa, stan (włączone / wyłączone / pomiar / niedostępne) i najważniejsza wartość - jasność światła, pomiary licznika, liczba świateł grupy. Przy urządzeniu niedostępnym widać, kiedy ostatnio dało znak życia.
+Na komputerze lista ma układ kolumn (kanał, nazwa i stan, informacje, przyciski) i zajmuje szerszą część okna; na telefonie te same dane układają się jedno pod drugim. Kliknięcie nazwy rozwija szczegóły. Lista urządzeń w zwartych wierszach: numer kanału, nazwa, stan (włączone / wyłączone / pomiar / niedostępne) i najważniejsza wartość - jasność światła, pomiary licznika, liczba świateł grupy. Przy urządzeniu niedostępnym widać, kiedy ostatnio dało znak życia.
 
-- **Włącz / Wyłącz** - komenda idzie prosto do urządzenia; stan na liście zmienia się dopiero po potwierdzeniu z urządzenia.
+- **Przełącznik** - włącza i wyłącza urządzenie (dla grupy: wszystkie jej światła). Komenda idzie prosto do urządzenia; przełącznik i stan na liście pokazują to, co potwierdziło urządzenie.
 - **Znajdź** - urządzenie daje o sobie znać przez 15 s (żarówka pulsuje, gniazdko miga diodą); dla grupy robią to wszystkie jej światła. Przydaje się, gdy trzeba ustalić, która żarówka jest którym węzłem.
 - **Przejdź do SUPLA** - otwiera w nowej karcie ten kanał w SUPLA Cloud. Przycisk pojawia się po wpisaniu numeru kanału z Cloud: w szczegółach kanału „Ustaw odnośnik do SUPLA” przyjmuje numer albo wklejony adres (`https://cloud.supla.org/channels/12345`) i na życzenie uzupełnia pozostałe kanały kolejnymi numerami. Numeru kanału w Cloud urządzenie samo nie zna; po zmianie konta lub serwera odnośniki są kasowane.
 - **Szczegóły** - rozwija wiersz: suwaki jasności i bieli, rodzaj urządzenia, producent, model, wersja firmware, węzeł i endpoint Matter, kanał SUPLA, grupy, do których światło należy, oraz przyciski „Zmień nazwę” i „Diagnostyka” (patrz niżej).
