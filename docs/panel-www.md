@@ -123,7 +123,7 @@ Nowo sparowane urządzenie obsługiwanego typu pojawia się tu **samo** jako kol
 
 Grupa to **jeden kanał SUPLA** (ściemniacz z regulacją bieli) sterujący kilkoma światłami naraz. Pojedyncze światła nadal działają jako osobne kanały - oba sposoby można mieszać, a jedno światło może mieć własny kanał i jednocześnie należeć do grupy.
 
-- **Utwórz grupę** - tworzy nowy, trwały kanał. Grupa może być na początku pusta (kanał jest wtedy niedostępny).
+- **Utwórz grupę** - tworzy pustą grupę, jeszcze bez kanału SUPLA. Trwały kanał powstaje dopiero po dodaniu pierwszego światła (zaznaczeniem w składzie albo parowaniem z wyborem „Do grupy”), więc grupa utworzona na próbę niczego w SUPLA nie zajmuje. Raz nadany kanał zostaje, także gdy grupa znów będzie pusta.
 - **Skład** - po rozwinięciu grupy zaznacza się światła i zapisuje przyciskiem „Zapisz skład”. Skład można zmieniać dowolnie; numer kanału się nie zmienia.
 - Światło wyjęte z grupy nie dostaje kanału samo - trafia na listę urządzeń bez kanału.
 

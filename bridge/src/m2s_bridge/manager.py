@@ -403,20 +403,25 @@ class Manager:
         result += [t for t in released if t not in grouped and t not in own]
         return result
 
+    def _next_channel(self, devices: list[Device]) -> int:
+        channel = max((d.supla_channel for d in devices), default=-1) + 1
+        if channel > MAX_SUPLA_CHANNEL:
+            raise ManagerError("wyczerpano numery kanałów SUPLA (0–127)")
+        return channel
+
     async def create_group(self, caption: str, members: list[tuple[int, int]]) -> Device:
-        """Tworzy grupę świateł jako nowy, trwały kanał SUPLA (może być na razie pusta)."""
+        """Tworzy grupę świateł. Trwały kanał SUPLA powstaje dopiero z pierwszym światłem."""
         caption = caption.strip()[:100]
         if not caption:
             raise ManagerError("podaj nazwę grupy")
         async with self._change_lock:
             devices = list(self.config.devices)
-            channel = max((d.supla_channel for d in devices), default=-1) + 1
-            if channel > MAX_SUPLA_CHANNEL:
-                raise ManagerError("wyczerpano numery kanałów SUPLA (0–127)")
+            checked = tuple(self._check_members(members))
+            channel = self._next_channel(devices) if checked else NO_CHANNEL
             taken = {d.name for d in devices} | {d.name for d in self._extras}
-            name, counter = f"grupa_{channel}", 2
-            while name in taken:
-                name, counter = f"grupa_{channel}_{counter}", counter + 1
+            counter = 1
+            while (name := f"grupa_{counter}") in taken:
+                counter += 1
             group = Device(
                 name=name,
                 node_id=0,
@@ -424,11 +429,11 @@ class Manager:
                 type=GROUP_TYPE,
                 supla_channel=channel,
                 caption=caption,
-                members=tuple(self._check_members(members)),
+                members=checked,
             )
             devices.append(group)
             await self._apply(devices, self._no_channel_after(devices, []))
-            log.info("dodano kanał SUPLA %d: grupa świateł %s (%d świateł)", channel, name, len(group.members))
+            log.info("utworzono grupę świateł %s (%d świateł, kanał SUPLA: %s)", name, len(checked), channel if checked else "jeszcze nie")
             return group
 
     async def set_group_members(self, name: str, members: list[tuple[int, int]]) -> Device:
@@ -439,6 +444,10 @@ class Manager:
         group = self._find_group(name)
         checked = tuple(self._check_members(members, group.members))
         updated = dataclasses.replace(group, members=checked)
+        if group.supla_channel == NO_CHANNEL and checked:
+            # Pierwsze światło: dopiero teraz grupa zajmuje (nieusuwalny) kanał SUPLA.
+            updated = dataclasses.replace(updated, supla_channel=self._next_channel(list(self.config.devices)))
+            log.info("dodano kanał SUPLA %d: grupa świateł %s", updated.supla_channel, name)
         devices = [updated if d is group else d for d in self.config.devices]
         released = [t for t in group.members if t not in checked]
         await self._apply(devices, self._no_channel_after(devices, released))
@@ -461,7 +470,7 @@ class Manager:
     async def set_caption(self, name: str, caption: str) -> None:
         async with self._change_lock:
             target = self._find(name)
-            if target.supla_channel == NO_CHANNEL:
+            if target.supla_channel == NO_CHANNEL and target.type != GROUP_TYPE:
                 raise ManagerError("nazwę można zmienić dopiero, gdy urządzenie ma kanał SUPLA")
             if target.type == "meter" and any(
                 d.type == "onoff" and d.node_id == target.node_id for d in self.config.devices
@@ -517,7 +526,7 @@ class Manager:
             self.regenerate_supla()
 
     def regenerate_supla(self) -> None:
-        if self.supla_output is None or not self.config.devices:
+        if self.supla_output is None or not any(d.supla_channel != NO_CHANNEL for d in self.config.devices):
             return
         if not self._supla_server or not self._supla_mail:
             self.supla_error = "Nie podano konta SUPLA — wpisz serwer i e-mail w sekcji „Konto SUPLA”. Kanały powstaną po zapisaniu."
@@ -657,7 +666,11 @@ class Manager:
 
     def snapshot(self) -> dict[str, Any]:
         info = self.server_info
-        devices = [self._device_view(d) for d in sorted(self.config.devices, key=lambda d: d.supla_channel)]
+        # grupy bez kanału (jeszcze puste) na końcu listy
+        devices = [
+            self._device_view(d)
+            for d in sorted(self.config.devices, key=lambda d: (d.supla_channel == NO_CHANNEL, d.supla_channel))
+        ]
         extras = {(d.node_id, d.endpoint): self._device_view(d) for d in self._extras}
         candidates = []
         for c in self.candidates():

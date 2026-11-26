@@ -204,7 +204,8 @@ def parse_config(raw: Any) -> Config:
         if not isinstance(item, dict):
             raise ConfigError(f"{where}: oczekiwano mapy")
         is_group = item.get("type") == GROUP_TYPE
-        required = ("name", "type", "supla_channel") if is_group else (
+        # Grupa bez `supla_channel` jeszcze nie ma kanału: dostaje go z pierwszym światłem.
+        required = ("name", "type") if is_group else (
             "name", "node_id", "endpoint", "type", "supla_channel"
         )
         missing = [k for k in required if k not in item]
@@ -227,9 +228,9 @@ def parse_config(raw: Any) -> Config:
                 node_id=0 if is_group else _require_int(item["node_id"], f"{where}.node_id", 1),
                 endpoint=0 if is_group else _require_int(item["endpoint"], f"{where}.endpoint", 0, 65535),
                 type=dev_type,
-                supla_channel=_require_int(
-                    item["supla_channel"], f"{where}.supla_channel", 0, MAX_SUPLA_CHANNEL
-                ),
+                supla_channel=NO_CHANNEL
+                if is_group and "supla_channel" not in item
+                else _require_int(item["supla_channel"], f"{where}.supla_channel", 0, MAX_SUPLA_CHANNEL),
                 caption=None if caption is None else str(caption),
                 measurements=_measurements(item, dev_type, where),
                 members=_targets(item.get("members"), f"{where}.members") if is_group else (),
@@ -269,13 +270,16 @@ def config_to_raw(config: Config) -> dict[str, Any]:
         mqtt["password"] = config.mqtt.password
     devices = []
     for dev in config.devices:
-        if dev.supla_channel == NO_CHANNEL:
+        if dev.supla_channel == NO_CHANNEL and dev.type != GROUP_TYPE:
             continue
         item: dict[str, Any] = {"name": dev.name}
         if dev.caption:
             item["caption"] = dev.caption
         if dev.type == GROUP_TYPE:
-            item.update(type=dev.type, supla_channel=dev.supla_channel, members=_targets_to_raw(dev.members))
+            item["type"] = dev.type
+            if dev.supla_channel != NO_CHANNEL:
+                item["supla_channel"] = dev.supla_channel
+            item["members"] = _targets_to_raw(dev.members)
         else:
             item.update(
                 node_id=dev.node_id, endpoint=dev.endpoint, type=dev.type, supla_channel=dev.supla_channel

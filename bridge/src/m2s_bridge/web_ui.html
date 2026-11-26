@@ -120,7 +120,7 @@
       <div class="field">
         <label for="group-caption">Nowa grupa</label>
         <input type="text" id="group-caption" maxlength="100" autocomplete="off" placeholder="np. Żyrandol w salonie" required>
-        <p class="hint">Grupa to jeden kanał SUPLA (ściemniacz z regulacją bieli) sterujący kilkoma światłami naraz. Kanału nie da się później usunąć, ale skład grupy można zmieniać dowolnie, np. po wymianie żarówki. Pojedyncze światła nadal można dodawać jako osobne kanały.</p>
+        <p class="hint">Grupa to jeden kanał SUPLA (ściemniacz z regulacją bieli) sterujący kilkoma światłami naraz. Kanał powstaje dopiero po dodaniu pierwszego światła i od tej chwili nie da się go usunąć; skład grupy można potem zmieniać dowolnie, np. po wymianie żarówki. Pojedyncze światła nadal można dodawać jako osobne kanały.</p>
       </div>
       <button>Utwórz grupę</button>
     </form>
@@ -316,7 +316,7 @@ function renderDevices(state) {
   }
   box.replaceChildren(...ordered.map((dev) => {
     const row = el("div", dev.caption_linked ? "row child" : "row");
-    const chan = el("div", "chan", String(dev.supla_channel));
+    const chan = el("div", "chan", dev.supla_channel < 0 ? "–" : String(dev.supla_channel));
     chan.append(el("small", null, "kanał"));
     const info = el("div");
     info.append(el("div", "title", dev.caption || dev.name));
@@ -412,7 +412,7 @@ function renderGroups(state) {
   if (!groups.length) { box.replaceChildren(el("p", "empty", "Brak grup.")); return; }
   box.replaceChildren(...groups.map((group) => {
     const details = el("details");
-    details.append(el("summary", null, `${group.caption || group.name} · kanał ${group.supla_channel} · świateł: ${group.members.length}`));
+    details.append(el("summary", null, `${group.caption || group.name} · ${group.supla_channel < 0 ? "jeszcze bez kanału" : "kanał " + group.supla_channel} · świateł: ${group.members.length}`));
     const inner = el("div");
     const member = (l) => group.members.some((m) => m.node_id === l.node_id && m.endpoint === l.endpoint);
     const boxes = lights.map((l) => {
@@ -429,6 +429,7 @@ function renderGroups(state) {
     const status = el("div");
     save.onclick = () => act(async () => {
       const members = [...inner.querySelectorAll("input:checked")].map((i) => ({ node_id: Number(i.dataset.node), endpoint: Number(i.dataset.endpoint) }));
+      if (group.supla_channel < 0 && members.length && !confirm("Po dodaniu pierwszego światła grupa dostanie kanał SUPLA, którego nie da się później usunąć bez usunięcia całego urządzenia z SUPLA Cloud. Kontynuować?")) return;
       await post(`/api/groups/${encodeURIComponent(group.name)}/members`, { members });
       groupsDirty = false;
     }, status);
@@ -587,7 +588,6 @@ $("commission-form").addEventListener("submit", (e) => {
 $("group-form").addEventListener("submit", (e) => {
   e.preventDefault();
   const caption = $("group-caption").value;
-  if (!confirm(`Utworzyć grupę „${caption}”? Powstanie nowy kanał SUPLA, którego nie da się później usunąć bez usunięcia całego urządzenia z SUPLA Cloud.`)) return;
   act(async () => { await post("/api/groups", { caption, members: [] }); $("group-caption").value = ""; groupsDirty = false; }, $("group-status"));
 });
 $("dataset-form").addEventListener("submit", (e) => {

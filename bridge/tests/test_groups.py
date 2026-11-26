@@ -160,6 +160,12 @@ async def make_manager(paths, *nodes, result=None):
 async def test_group_is_one_channel_and_singles_stay(paths):
     manager = await make_manager(paths, node(3))
     assert [d.type for d in manager.config.devices] == ["light_cct"]  # pojedyncze światło jak dotąd
+    empty = await manager.create_group("Pusta", [])
+    assert empty.supla_channel == -1 and manager.snapshot()["devices"][-1]["name"] == empty.name
+    assert not (paths[1].parent / "channels.lock.json").exists() or "1" not in json.loads(
+        (paths[1].parent / "channels.lock.json").read_text()
+    )["channels"]
+    assert load_config(paths[0]).devices[1].supla_channel == -1  # pusta grupa przetrwa restart
     group = await manager.create_group("Salon", [(3, 1)])
     assert group.supla_channel == 1 and group.members == ((3, 1),)
     assert f"m2s/group/{group.name}/set" in manager.mqtt.subscribed
@@ -178,6 +184,7 @@ async def test_group_is_one_channel_and_singles_stay(paths):
 async def test_pairing_into_group_creates_no_single_channel(paths):
     manager = await make_manager(paths, node(3))
     group = await manager.create_group("Salon", [])
+    assert group.supla_channel == -1  # kanał dopiero z pierwszym światłem
     new = node(4)
     manager.matter_client.result = new
     manager.start_commission("MT:ABC", False, f"group:{group.name}")
@@ -228,6 +235,7 @@ async def test_removed_member_does_not_get_channel_by_itself(paths):
     await manager.set_group_members(group.name, [])
     await manager.auto_add()
     assert len(manager.config.devices) == 1 and manager.config.no_channel == ((3, 1),)
+    assert manager.config.devices[0].supla_channel == 0  # raz nadany kanał zostaje także pustej grupie
     await manager.set_group_members(group.name, [(3, 1)])
     assert manager.config.no_channel == ()
     saved = yaml.safe_load(paths[0].read_text(encoding="utf-8"))
