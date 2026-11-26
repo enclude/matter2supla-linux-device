@@ -19,6 +19,9 @@ from .web import start_web
 log = logging.getLogger(__name__)
 
 MAX_BACKOFF_SEC = 30.0
+# Kontroler jest na tym samym hoście i wraca po kilku sekundach (kopia zapasowa, aktualizacja),
+# więc pytamy często - dłuższa przerwa to tylko dłużej niedostępne kanały.
+MATTER_MAX_BACKOFF_SEC = 4.0
 
 
 async def _matter_loop(manager: Manager) -> None:
@@ -54,7 +57,7 @@ async def _matter_loop(manager: Manager) -> None:
             await client.close()
             await core.matter_disconnected()
         await asyncio.sleep(backoff)
-        backoff = min(backoff * 2, MAX_BACKOFF_SEC)
+        backoff = min(backoff * 2, MATTER_MAX_BACKOFF_SEC)
 
 
 async def _mqtt_loop(mqtt: aiomqtt.Client, manager: Manager, tasks: asyncio.TaskGroup) -> None:

@@ -298,7 +298,7 @@ function renderBackups(state) {
   if (request.pending && request.stale) {
     notice($("backup-status"), "warn", "Host nie podjął zlecenia kopii. Obsługę kopii ręcznych instaluje się raz na hoście, w katalogu projektu: sudo ./host/install-backup-timer.sh");
   } else if (request.pending) {
-    notice($("backup-status"), "ok", "Kopia w toku - potrwa kilkanaście sekund. Kontroler Matter i połączenie z SUPLA są na ten czas zatrzymane.");
+    notice($("backup-status"), "ok", "Kopia w toku - potrwa do pół minuty. Kontroler Matter i połączenie z SUPLA są na ten czas zatrzymane.");
   } else if (request.last_result && request.last_result !== "success") {
     notice($("backup-status"), "bad", `Ostatnia kopia ręczna nie powiodła się (${request.last_result}). Szczegóły na hoście: journalctl -u m2s-backup-manual`);
   } else {
@@ -827,7 +827,7 @@ $("commission-form").addEventListener("submit", (e) => {
   });
 });
 $("backup-now").onclick = () => {
-  if (confirm("Zrobić kopię zapasową teraz? Na kilkanaście sekund zatrzyma się kontroler Matter i połączenie z SUPLA; kanały wrócą same."))
+  if (confirm("Zrobić kopię zapasową teraz? Kontroler Matter i połączenie z SUPLA zatrzymają się na chwilę; kanały wrócą same w ciągu ok. pół minuty."))
     act(() => post("/api/backups", {}), $("backup-status"));
 };
 $("device-filter").addEventListener("input", () => refresh());
