@@ -29,7 +29,7 @@ Wykonane na przykładowych danych skryptem [`img/make_screenshots.py`](img/make_
 | Widok | Plik |
 | --- | --- |
 | Cały panel (komputer) | [img/panel.png](img/panel.png) |
-| Cały panel (telefon) | [img/panel-telefon.png](img/panel-telefon.png) |
+| Panel na telefonie (zakładka „Parowanie”) | [img/panel-telefon.png](img/panel-telefon.png) |
 | Logowanie | [img/panel-logowanie.png](img/panel-logowanie.png) |
 | Kanały SUPLA | [img/panel-kanaly.png](img/panel-kanaly.png) |
 | Grupy świateł | [img/panel-grupy.png](img/panel-grupy.png) |

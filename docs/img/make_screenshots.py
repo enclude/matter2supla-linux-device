@@ -94,7 +94,7 @@ async def main() -> None:
 
         async def open_page(width: int, height: int, mobile: bool = False):
             context = await browser.new_context(
-                viewport={"width": width, "height": height}, device_scale_factor=2, is_mobile=mobile, locale="pl-PL"
+                viewport={"width": width, "height": height}, device_scale_factor=2, is_mobile=mobile, has_touch=mobile, locale="pl-PL"
             )
             page = await context.new_page()
 
@@ -108,7 +108,7 @@ async def main() -> None:
             await page.goto(base + "/login")
             await page.fill("input[type=password]", PASSWORD)
             await page.keyboard.press("Enter")
-            await page.wait_for_selector("h2")
+            await page.wait_for_selector("footer a")
             await page.wait_for_timeout(800)
 
         page = await open_page(900, 520)
@@ -136,7 +136,8 @@ async def main() -> None:
         manager.state["commission"] = STATE["commission"]
 
         phone = await open_page(390, 800, mobile=True)
-        await login(phone)
+        await login(phone)  # telefon z ustawionym kontem SUPLA zaczyna od zakładki „Parowanie”
+        await phone.wait_for_selector("#tab-parowanie:not([hidden])")
         await phone.screenshot(path=OUT / "panel-telefon.png", full_page=True)
         await browser.close()
     await runner.cleanup()
