@@ -23,6 +23,7 @@ from .diagnostics import build_diagnostics
 from .matter_client import MatterConnectionError, MatterError
 from .supla_config import ChannelConflictError, write_supla_config
 from .topics import set_topic
+from .version import UpdateChecker
 
 log = logging.getLogger(__name__)
 
@@ -96,6 +97,8 @@ class Manager:
         self.matter_client: Any = None
         self.server_info: dict[str, Any] = {}
         self.supla_error: str | None = None
+        # Wersja łącznika i najnowsze wydanie (zapytania wysyła zadanie uruchamiane w runner.py).
+        self.updates = UpdateChecker()
         self.commission_state: dict[str, Any] = {"running": False, "message": None, "error": None}
         self._commission_task: asyncio.Task[None] | None = None
         self._change_lock = asyncio.Lock()
@@ -473,6 +476,7 @@ class Manager:
                 "bluetooth": bool(info.get("bluetooth_enabled")),
             },
             "auto_add": self.config.auto_add,
+            "version": self.updates.info(),
             "supla": {"server": self._supla_server, "mail": self._supla_mail},
             "supla_error": self.supla_error
             or (None if self._supla_server and self._supla_mail else "Nie podano konta SUPLA — wpisz serwer i e-mail w sekcji „Konto SUPLA”."),

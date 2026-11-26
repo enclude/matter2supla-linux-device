@@ -35,6 +35,8 @@ Zmienne środowiskowe:
 | `M2S_BACKUP_DIR` | `./backups` | katalog docelowy |
 | `M2S_BACKUP_KEEP` | `14` | ile najnowszych kopii zostawić |
 
+Tych samych zmiennych używa `host/update.sh`, który przed aktualizacją zapisuje kopię do osobnego katalogu `backups-update/` ([aktualizacja.md](aktualizacja.md)) — rotacja codziennych kopii jej nie obejmuje.
+
 Jeśli `otbr` nie działa, kopia powstanie bez `dataset-active.txt` (skrypt wypisze ostrzeżenie).
 
 ## Harmonogram

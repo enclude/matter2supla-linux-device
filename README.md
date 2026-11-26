@@ -99,6 +99,7 @@ Co obsługuje łącznik:
 - Odłączenie gniazdka na ponad 2 minuty → kanał offline w SUPLA.
 - Czy SUPLA Cloud przyjmuje kanał dopisany do już zarejestrowanego urządzenia bez dodatkowych kroków (być może trzeba na chwilę włączyć rejestrację urządzeń).
 - Pełne odtworzenie kopii zapasowej na drugim urządzeniu.
+- Wersjonowane wydania, powiadomienie o nowej wersji w panelu i aktualizacja skryptem `host/update.sh` ([docs/aktualizacja.md](docs/aktualizacja.md)) — sprawdzone tylko lokalnie, na atrapach.
 - Skrypt `host/flash-rcp.sh` (droga z zainstalowanym ESP-IDF) oraz wgrywanie firmware z Linuksa — wgrywano z Windows.
 - Parowanie przez udostępnienie z innej aplikacji (bez Bluetootha).
 - Inne modele Raspberry Pi i inne dystrybucje niż wymienione wyżej.
@@ -115,6 +116,7 @@ Spis treści: [docs/README.md](docs/README.md).
 | [docs/panel-www.md](docs/panel-www.md) | panel: dostęp i hasło, konto SUPLA, kanały, diagnostyka urządzeń nieobsługiwanych |
 | [docs/parowanie.md](docs/parowanie.md) | parowanie urządzeń: tryb parowania, reset, ponawianie |
 | [docs/kopie-zapasowe.md](docs/kopie-zapasowe.md) | kopie zapasowe i odtwarzanie na innym urządzeniu |
+| [docs/aktualizacja.md](docs/aktualizacja.md) | wersje, powiadomienie o nowym wydaniu w panelu, ręczna aktualizacja `host/update.sh` i cofanie |
 | [docs/rozwiazywanie-problemow.md](docs/rozwiazywanie-problemow.md) | znane problemy i ich rozwiązania |
 | [docs/jak-to-dziala.md](docs/jak-to-dziala.md) | tematy MQTT, dostępność, trwałość kanałów SUPLA, pliki i porty |
 | [docs/cli.md](docs/cli.md) | polecenia `m2s-bridge` |

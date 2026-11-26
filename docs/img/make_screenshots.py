@@ -30,6 +30,13 @@ STATE = {
     "matter_connected": True,
     "server": {"version": "matter.js/0.16", "thread_dataset_set": True, "bluetooth": True},
     "auto_add": True,
+    "version": {
+        "current": "0.2.0",
+        "revision": "4f1c2d7a9b3e5f60718293a4b5c6d7e8f9012345",
+        "latest": "0.3.0",
+        "update_available": True,
+        "url": "https://github.com/enclude/matter2supla-linux-device/releases/tag/v0.3.0",
+    },
     "supla": {"server": "svr1.supla.org", "mail": "supla@zjawa.tech"},
     "supla_error": None,
     "devices": [

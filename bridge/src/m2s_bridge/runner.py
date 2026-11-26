@@ -105,6 +105,8 @@ async def _session(manager: Manager) -> None:
 async def run(manager: Manager, web_password: str | None = None) -> None:
     manager.regenerate_supla()
     web_runner = await start_web(manager, web_password) if manager.config.web.enabled else None
+    # Informacja o nowszym wydaniu dla panelu; do wyłączenia przez `update_check: false`.
+    update_task = asyncio.create_task(manager.updates.run()) if manager.config.update_check else None
     backoff = 1.0
     try:
         while True:
@@ -115,5 +117,7 @@ async def run(manager: Manager, web_password: str | None = None) -> None:
             await asyncio.sleep(backoff)
             backoff = min(backoff * 2, MAX_BACKOFF_SEC)
     finally:
+        if update_task is not None:
+            update_task.cancel()
         if web_runner is not None:
             await web_runner.cleanup()

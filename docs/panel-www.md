@@ -68,6 +68,8 @@ Plik `config/devices.yaml` jest także zapisywany przez łącznik (przy dopisywa
 
 Znaczniki „MQTT” i „Matter · wersja” pokazują połączenie łącznika z brokerem i kontrolerem. Żółty komunikat u góry informuje o problemie z konfiguracją SUPLA (np. brak konta albo konflikt kanałów).
 
+W stopce widać wersję łącznika. Gdy na GitHubie jest nowsze wydanie, u góry pojawia się komunikat „Dostępna wersja X” z odnośnikiem do opisu wydania; panel niczego sam nie aktualizuje — robi się to poleceniem `sudo ./host/update.sh` na hoście. Sprawdzanie można wyłączyć (`update_check: false`); szczegóły: [aktualizacja.md](aktualizacja.md).
+
 ## Konto SUPLA
 
 ![Sekcja „Konto SUPLA”](img/panel-konto-supla.png)

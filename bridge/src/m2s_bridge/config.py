@@ -77,6 +77,9 @@ class Config:
     # Światła z regulacją bieli jako kanały SUPLA typu ściemniacz CCT (rozszerzenie MatterLight
     # w supla-device, protokół SUPLA 28). Po wyłączeniu światłem steruje się tylko z panelu.
     lights_as_channels: bool = True
+    # Raz na dobę pytanie do API GitHuba o najnowsze wydanie — tylko informacja w panelu,
+    # nic nie jest pobierane ani aktualizowane samoczynnie.
+    update_check: bool = True
     web: WebConfig = field(default_factory=WebConfig)
     devices: tuple[Device, ...] = ()
 
@@ -145,6 +148,9 @@ def parse_config(raw: Any) -> Config:
     lights_as_channels = raw.get("lights_as_channels", True)
     if not isinstance(lights_as_channels, bool):
         raise ConfigError("lights_as_channels musi być wartością true/false")
+    update_check = raw.get("update_check", True)
+    if not isinstance(update_check, bool):
+        raise ConfigError("update_check musi być wartością true/false")
     web_raw = _section(raw, "web")
     web_enabled = web_raw.get("enabled", True)
     if not isinstance(web_enabled, bool):
@@ -198,6 +204,7 @@ def parse_config(raw: Any) -> Config:
         state_expiration_sec=expiration,
         auto_add=auto_add,
         lights_as_channels=lights_as_channels,
+        update_check=update_check,
         web=web,
         devices=tuple(devices),
     )
@@ -239,6 +246,7 @@ def config_to_raw(config: Config) -> dict[str, Any]:
         "state_expiration_sec": config.state_expiration_sec,
         "auto_add": config.auto_add,
         "lights_as_channels": config.lights_as_channels,
+        "update_check": config.update_check,
         "web": {"enabled": config.web.enabled, "host": config.web.host, "port": config.web.port},
         "devices": devices,
     }

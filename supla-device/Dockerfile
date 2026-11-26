@@ -36,6 +36,11 @@ COPY entrypoint.sh /usr/local/bin/supla-entrypoint
 RUN chmod 755 /usr/local/bin/supla-entrypoint
 USER supla
 WORKDIR /var/lib/supla-device
+# Wersja i commit wbudowane w obraz (ustawia je pipeline; budowa lokalna: `dev`). Na końcu pliku,
+# żeby zmiana numeru nie unieważniała wcześniejszych warstw.
+ARG M2S_BUILD_VERSION=dev
+ARG M2S_BUILD_REVISION=
+ENV M2S_BUILD_VERSION=${M2S_BUILD_VERSION} M2S_BUILD_REVISION=${M2S_BUILD_REVISION}
 # Tryb „normal”: logi na stdout (widoczne w `docker compose logs supla`).
 # Entrypoint restartuje supla-device po każdej zmianie pliku konfiguracyjnego.
 ENTRYPOINT ["supla-entrypoint"]

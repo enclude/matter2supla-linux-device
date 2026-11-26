@@ -23,7 +23,7 @@ Sam krok tworzenia sieci Thread i startu usług można powtórzyć osobno: `sudo
 
 ### Gotowe obrazy
 
-`bridge` i `supla-device` są publikowane w GitHub Container Registry przez pipeline `.github/workflows/docker.yml` (amd64 i arm64, tag `latest` dla gałęzi `main`, numer wersji dla tagów `v*`). `docker compose pull bridge supla` pobiera je zamiast budować; wersję wybiera zmienna `M2S_VERSION` w `.env`. Budowa lokalna: `docker compose build bridge supla` albo `M2S_BUILD=1 sudo ./host/init-thread.sh`.
+`bridge` i `supla-device` są publikowane w GitHub Container Registry przez pipeline `.github/workflows/docker.yml` (amd64 i arm64; numer wersji i `latest` dla tagów `vX.Y.Z`, `edge` dla gałęzi `main` — patrz [aktualizacja.md](aktualizacja.md)). `docker compose pull bridge supla` pobiera je zamiast budować; wersję wybiera zmienna `M2S_VERSION` w `.env`. Budowa lokalna: `docker compose build bridge supla` albo `M2S_BUILD=1 sudo ./host/init-thread.sh`.
 
 ## 1. System
 
@@ -195,14 +195,16 @@ Drugie polecenie powinno pokazać `dataset Thread ustawiony: True` oraz `Bluetoo
 
 ## Aktualizacja
 
-Po pobraniu nowej wersji repozytorium:
+Aktualizację do nowego wydania wykonuje ręcznie uruchamiany skrypt — robi kopię zapasową, podmienia pliki projektu i obrazy, sprawdza wynik i w razie niepowodzenia wraca do poprzedniej wersji:
 
 ```bash
-git pull
-docker compose up -d --build
+sudo ./host/update.sh --check     # czy jest nowsze wydanie
+sudo ./host/update.sh
 ```
 
-Dane w `data/` i `config/` zostają. Przed aktualizacją zrób kopię: `sudo ./host/backup.sh`. (Procedura aktualizacji między wersjami nie była osobno testowana.)
+Szczegóły, cofanie i lista rzeczy, których skrypt nie zmienia: [aktualizacja.md](aktualizacja.md). (Skrypt nie był jeszcze uruchamiany na sprzęcie.)
+
+Wersja rozwojowa z repozytorium, budowana na miejscu: `git pull`, potem `docker compose up -d --build`. Dane w `data/` i `config/` zostają; przed taką aktualizacją zrób kopię: `sudo ./host/backup.sh`.
 
 ## Restart i autostart
 

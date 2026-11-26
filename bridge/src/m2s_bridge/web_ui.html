@@ -60,6 +60,9 @@
   .check input { margin-top: 4px; }
   .hint { font-size: 12px; color: var(--muted); margin: 4px 0 0; }
   .empty { color: var(--muted); margin: 0; }
+  .notice a { color: inherit; font-weight: 600; }
+  .notice code { font-size: 13px; }
+  footer { font-size: 12px; color: var(--muted); text-align: center; margin-top: 20px; }
   .sliders { grid-column: 1 / -1; display: grid; grid-template-columns: 110px 1fr 44px; gap: 6px 10px; align-items: center; font-size: 13px; }
   .sliders input[type=range] { width: 100%; accent-color: var(--accent); }
   .sliders output { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
@@ -77,6 +80,7 @@
     <button type="button" id="logout" hidden style="margin-left:auto">Wyloguj</button>
   </header>
 
+  <div id="update-notice"></div>
   <div id="notices"></div>
 
   <section>
@@ -155,6 +159,7 @@
     <div id="backups"><p class="empty">Wczytywanie…</p></div>
     <p class="hint">Kopia zawiera wszystko, czego nie da się odtworzyć: tożsamość kontrolera Matter (parowania), klucze sieci Thread, identyfikator urządzenia SUPLA i konfigurację kanałów. Zawiera sekrety — trzymaj ją w bezpiecznym miejscu. Odtwarzanie: <code>sudo ./host/restore.sh plik.tar.gz</code>.</p>
   </section>
+  <footer id="version"></footer>
 </main>
 
 <script>
@@ -316,6 +321,29 @@ function renderCandidates(state) {
   }));
 }
 
+let shownVersion = null;
+
+function renderVersion(state) {
+  // Wersja w stopce; komunikat o nowszym wydaniu tylko informuje — aktualizację robi się ręcznie na hoście.
+  const v = state.version;
+  if (!v) return;
+  const key = JSON.stringify(v);
+  if (key === shownVersion) return;  // bez przebudowy co 2 s — odnośnik ma dać się kliknąć
+  shownVersion = key;
+  $("version").textContent = `Matter2Supla ${v.current}` + (v.revision ? ` (${v.revision.slice(0, 7)})` : "");
+  const box = $("update-notice");
+  if (!v.update_available) { box.replaceChildren(); return; }
+  const note = el("div", "notice ok", `Dostępna wersja ${v.latest} (zainstalowana: ${v.current}). `);
+  if (v.url && v.url.startsWith("https://")) {
+    const link = el("a", null, "Opis wydania");
+    link.href = v.url; link.target = "_blank"; link.rel = "noopener noreferrer";
+    note.append(link, ". ");
+  }
+  note.append("Aktualizację uruchamia się ręcznie na hoście, w katalogu projektu: ", el("code", null, "sudo ./host/update.sh"),
+    " — nic nie aktualizuje się samo.");
+  box.replaceChildren(note);
+}
+
 function render(state) {
   const pills = [
     ["MQTT", state.mqtt_connected],
@@ -327,6 +355,7 @@ function render(state) {
   renderDevices(state);
   renderCandidates(state);
   renderBackups(state);
+  renderVersion(state);
   if (!suplaDirty && document.activeElement.id !== "supla-server" && document.activeElement.id !== "supla-mail") {
     $("supla-server").value = state.supla.server || "";
     $("supla-mail").value = state.supla.mail || "";

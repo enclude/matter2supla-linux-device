@@ -20,6 +20,7 @@ from pathlib import Path
 from .config import Config, ConfigError, MatterConfig, load_config
 from .matter_client import MatterClient, MatterConnectionError, MatterError
 from .supla_config import ChannelConflictError, write_supla_config
+from .version import describe
 
 DEFAULT_CONFIG = "/config/devices.yaml"
 DEFAULT_SUPLA_OUTPUT = "/config/supla/supla-device.yaml"
@@ -51,6 +52,7 @@ async def _run(config: Config, config_path: str) -> None:
 
     password = os.environ.get("M2S_WEB_PASSWORD") or None
     check_web_security(config.web, password)
+    logging.getLogger(__name__).info("m2s-bridge %s", describe())
     manager = Manager(
         config,
         config_path=Path(config_path),
@@ -136,6 +138,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="adres WebSocket matter-server (domyślnie z pliku konfiguracyjnego)",
     )
     parser.add_argument("--log-level", default=os.environ.get("M2S_LOG_LEVEL", "INFO"))
+    parser.add_argument("--version", action="version", version=f"m2s-bridge {describe()}")
     sub = parser.add_subparsers(dest="command")
 
     sub.add_parser("run", help="uruchom łącznik (domyślne)")

@@ -13,6 +13,7 @@ Przegląd projektu, wymagania i stan prac: [../README.md](../README.md).
 
 ## Eksploatacja
 
+- [Aktualizacja](aktualizacja.md) — wersje i tagi obrazów, powiadomienie w panelu, ręczna aktualizacja `host/update.sh`, cofanie.
 - [Rozwiązywanie problemów](rozwiazywanie-problemow.md) — objawy i rozwiązania z rzeczywistych uruchomień.
 - [Jak to działa](jak-to-dziala.md) — tematy MQTT, dostępność i offline, trwałość kanałów SUPLA, pliki, porty.
 - [Polecenia CLI łącznika](cli.md) — `m2s-bridge` i jego opcje.

@@ -3,7 +3,7 @@
 
 import pytest
 
-from m2s_bridge.config import ConfigError, load_config, parse_config
+from m2s_bridge.config import ConfigError, config_to_raw, load_config, parse_config
 
 DEVICE = {"name": "plug", "node_id": 1, "endpoint": 1, "type": "onoff", "supla_channel": 0}
 
@@ -75,3 +75,13 @@ def test_load_config_errors(tmp_path):
     bad.write_text("devices: [", encoding="utf-8")
     with pytest.raises(ConfigError):
         load_config(bad)
+
+
+def test_update_check_option():
+    assert parse_config({}).update_check is True
+    assert config_to_raw(parse_config({}))["update_check"] is True
+    config = parse_config({"update_check": False})
+    assert config.update_check is False
+    assert parse_config(config_to_raw(config)).update_check is False
+    with pytest.raises(ConfigError, match="update_check"):
+        parse_config({"update_check": "nie"})

@@ -95,6 +95,7 @@ Wzór: `config/devices.example.yaml`. Jeśli pliku nie ma, łącznik startuje z 
 | `state_expiration_sec` | `120` | po jakim czasie bez wiadomości `supla-device` uznaje stan za nieważny; co najmniej 2× `heartbeat_sec`, `0` = bez wygasania |
 | `auto_add` | `true` | automatyczne dopisywanie kanałów |
 | `lights_as_channels` | `true` | światła z regulacją bieli jako kanał SUPLA „ściemniacz CCT”; `false` = sterowanie tylko z panelu |
+| `update_check` | `true` | raz na dobę pytanie do API GitHuba o najnowsze wydanie (tylko informacja w panelu, patrz [aktualizacja.md](aktualizacja.md)) |
 | `web.enabled`, `web.host`, `web.port` | `true`, `127.0.0.1`, `8099` | panel WWW ([panel-www.md](panel-www.md)) |
 | `devices` | `[]` | lista urządzeń; wypełnia ją łącznik |
 

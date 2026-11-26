@@ -19,6 +19,7 @@ Własnym kodem projektu jest łącznik w `bridge/` (Python ≥ 3.11, asyncio) or
 | `diagnostics.py` | zrzut diagnostyczny węzła |
 | `light.py` | przeliczenia dla świateł: poziom i miredy Matter ↔ skala SUPLA 0–100 |
 | `meter.py` | licznik energii: wykrywanie pomiarów i przeliczenia jednostek |
+| `version.py` | wersja wbudowana w obraz i sprawdzanie najnowszego wydania na GitHubie |
 
 ## Testy jednostkowe
 
@@ -55,6 +56,7 @@ Pamiętaj o trwałości kanałów: typ kanału SUPLA przypisany urządzeniu jest
 
 - `bridge/Dockerfile` — `python:3.12-slim`, proces jako uid 1000.
 - `supla-device/Dockerfile` — buduje `supla-device` z **przypiętego commita** gałęzi `main` repozytorium SUPLA/supla-device (argument `SUPLA_DEVICE_REF`), bo wydanie v26.9.2 nie ma `expiration_time_sec` dla źródła MQTT. Do budowy dołączane są rozszerzenia z `supla-device/extensions/`.
+- Oba obrazy przyjmują argumenty budowy `M2S_BUILD_VERSION` (domyślnie `dev`) i `M2S_BUILD_REVISION`; ustawia je pipeline. Wydawanie wersji: [aktualizacja.md](aktualizacja.md).
 - `supla-device/entrypoint.sh` — czeka na konfigurację i restartuje `supla-device` po każdej zmianie pliku.
 
 Budowa obu obrazów była sprawdzona na x86-64 i na arm64 (Raspberry Pi 4B).

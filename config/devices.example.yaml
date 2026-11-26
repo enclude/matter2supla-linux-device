@@ -22,6 +22,10 @@ auto_add: true
 # Po ustawieniu false światłem steruje się tylko suwakami w panelu.
 lights_as_channels: true
 
+# Raz na dobę łącznik pyta API GitHuba o najnowsze wydanie i pokazuje informację w panelu.
+# Niczego nie pobiera ani nie aktualizuje — robi to ręcznie: sudo ./host/update.sh
+update_check: true
+
 # Panel WWW (parowanie, lista kanałów). Domyślnie tylko lokalnie: ssh -L 8099:127.0.0.1:8099 <vm>
 # Dla dostępu z LAN ustaw host na adres VM i hasło M2S_WEB_PASSWORD w .env.
 web:

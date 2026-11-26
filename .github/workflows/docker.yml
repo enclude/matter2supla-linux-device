@@ -2,7 +2,12 @@
 # Registry (ghcr.io). Dzięki temu instalacja pobiera gotowe obrazy zamiast kompilować je na
 # Raspberry Pi.
 #
-# Tagi: `latest` dla gałęzi main, numer wersji dla tagów `v*` (np. v1.2.0 -> 1.2.0).
+# Tagi obrazów:
+#   tag gita `vX.Y.Z`  -> `X.Y.Z` i `latest` oraz wydanie (GitHub Release) z automatycznymi notatkami,
+#   gałąź `main`       -> `edge` i `sha-<commit>` (wersja rozwojowa, nie `latest`),
+#   pull request       -> sama budowa, bez publikacji.
+# Wersja i commit są wbudowane w oba obrazy (M2S_BUILD_VERSION, M2S_BUILD_REVISION).
+# Filtr `paths` dotyczy gałęzi i pull requestów; wypchnięcie tagu uruchamia pipeline zawsze.
 name: Obrazy Docker
 
 on:
@@ -65,6 +70,17 @@ jobs:
             runner: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
+      - name: Wersja
+        id: version
+        run: |
+          if [[ "${GITHUB_REF}" =~ ^refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          elif [[ "${GITHUB_REF}" == refs/heads/main ]]; then
+            VERSION="edge"
+          else
+            VERSION="dev"
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
       - uses: docker/setup-buildx-action@v3
       - name: Logowanie do GHCR
         if: github.event_name != 'pull_request'
@@ -80,10 +96,15 @@ jobs:
           platforms: linux/${{ matrix.arch }}
           push: ${{ github.event_name != 'pull_request' }}
           # Tag tymczasowy dla jednej architektury; wspólny tag powstaje w zadaniu `manifest`.
-          tags: ${{ env.IMAGE_PREFIX }}-${{ matrix.image }}:build-${{ github.sha }}-${{ matrix.arch }}
+          # Numer przebiegu w nazwie: ten sam commit bywa budowany dwa razy (gałąź i tag) z inną wersją.
+          tags: ${{ env.IMAGE_PREFIX }}-${{ matrix.image }}:build-${{ github.run_id }}-${{ matrix.arch }}
+          build-args: |
+            M2S_BUILD_VERSION=${{ steps.version.outputs.version }}
+            M2S_BUILD_REVISION=${{ github.sha }}
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.version.outputs.version }}
             org.opencontainers.image.licenses=GPL-2.0-or-later
           cache-from: type=gha,scope=${{ matrix.image }}-${{ matrix.arch }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image }}-${{ matrix.arch }}
@@ -111,16 +132,47 @@ jobs:
         id: tags
         run: |
           NAME="${IMAGE_PREFIX}-${{ matrix.image }}"
-          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
-            TAGS="-t ${NAME}:${GITHUB_REF_NAME#v}"
+          if [[ "${GITHUB_REF}" =~ ^refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            FIRST="${GITHUB_REF_NAME#v}"
+            TAGS="-t ${NAME}:${FIRST} -t ${NAME}:latest"
+          elif [[ "${GITHUB_REF}" == refs/heads/main ]]; then
+            FIRST="edge"
+            TAGS="-t ${NAME}:edge -t ${NAME}:sha-${GITHUB_SHA::7}"
           else
-            TAGS="-t ${NAME}:latest"
+            # Ręczne uruchomienie z innej gałęzi albo tag spoza schematu vX.Y.Z: tylko tag commita.
+            FIRST="sha-${GITHUB_SHA::7}"
+            TAGS="-t ${NAME}:${FIRST}"
           fi
           echo "name=${NAME}" >> "$GITHUB_OUTPUT"
-          echo "tags=${TAGS} -t ${NAME}:sha-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          echo "first=${FIRST}" >> "$GITHUB_OUTPUT"
+          echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
       - name: Złożenie obrazu wieloarchitekturowego
         run: |
           docker buildx imagetools create ${{ steps.tags.outputs.tags }} \
-            "${{ steps.tags.outputs.name }}:build-${GITHUB_SHA}-amd64" \
-            "${{ steps.tags.outputs.name }}:build-${GITHUB_SHA}-arm64"
-          docker buildx imagetools inspect "${{ steps.tags.outputs.name }}:sha-${GITHUB_SHA::7}"
+            "${{ steps.tags.outputs.name }}:build-${GITHUB_RUN_ID}-amd64" \
+            "${{ steps.tags.outputs.name }}:build-${GITHUB_RUN_ID}-arm64"
+          docker buildx imagetools inspect "${{ steps.tags.outputs.name }}:${{ steps.tags.outputs.first }}"
+
+  release:
+    name: Wydanie
+    # Dopiero po opublikowaniu obrazów: panel i host/update.sh dowiadują się o wersji z listy wydań.
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: manifest
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Utworzenie wydania z automatycznymi notatkami
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [[ ! "${GITHUB_REF_NAME}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Tag ${GITHUB_REF_NAME} nie ma postaci vX.Y.Z — bez wydania."
+            exit 0
+          fi
+          if gh release view "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            echo "Wydanie ${GITHUB_REF_NAME} już istnieje."
+            exit 0
+          fi
+          gh release create "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" \
+            --title "${GITHUB_REF_NAME}" --generate-notes --verify-tag

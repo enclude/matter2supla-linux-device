@@ -44,6 +44,7 @@ Podaje się je przed nazwą polecenia.
 | `--config` | `M2S_CONFIG` | `/config/devices.yaml` |
 | `--matter-url` | `M2S_MATTER_URL` | z pliku konfiguracyjnego (`ws://127.0.0.1:5580/ws`) |
 | `--log-level` | `M2S_LOG_LEVEL` | `INFO` |
+| `--version` | — | wypisuje wersję i commit wbudowane w obraz (`M2S_BUILD_VERSION`, `M2S_BUILD_REVISION`) i kończy |
 
 ## Pozostałe zmienne środowiskowe
 

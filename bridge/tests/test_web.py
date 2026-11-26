@@ -233,3 +233,27 @@ async def test_light_endpoint(tmp_path):
         assert r.status == 200 and manager.matter_client.calls[-1][1][2:4] == (6, "Off")
     finally:
         await client.close()
+
+
+async def test_state_reports_version(tmp_path, monkeypatch):
+    monkeypatch.setenv("M2S_BUILD_VERSION", "0.2.0")
+    monkeypatch.setenv("M2S_BUILD_REVISION", "0123456789abcdef")
+    manager, client = await make(tmp_path)
+    try:
+        state = await (await client.get("/api/state")).json()
+        assert state["version"] == {
+            "current": "0.2.0",
+            "revision": "0123456789abcdef",
+            "latest": None,
+            "update_available": False,
+            "url": None,
+        }
+        manager.updates.latest = "0.3.0"
+        manager.updates.release_url = "https://github.com/enclude/matter2supla-linux-device/releases/tag/v0.3.0"
+        version = (await (await client.get("/api/state")).json())["version"]
+        assert version["update_available"] is True and version["latest"] == "0.3.0"
+        assert version["url"].endswith("/v0.3.0")
+        page = await (await client.get("/")).text()
+        assert "update-notice" in page and "sudo ./host/update.sh" in page
+    finally:
+        await client.close()
