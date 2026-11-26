@@ -127,6 +127,8 @@ Grupa to **jeden kanał SUPLA** (ściemniacz z regulacją bieli) sterujący kilk
 - **Skład** - po rozwinięciu grupy zaznacza się światła i zapisuje przyciskiem „Zapisz skład”. Skład można zmieniać dowolnie; numer kanału się nie zmienia.
 - Światło wyjęte z grupy nie dostaje kanału samo - trafia na listę urządzeń bez kanału.
 
+Grupa jest jednorodna: należą do niej tylko światła tego samego rodzaju. Dziś jedyny obsługiwany rodzaj to światło z regulacją jasności i bieli, więc tylko takie są na liście; gniazdka ani innego urządzenia dodać się nie da.
+
 Zachowanie grupy:
 
 - polecenie z SUPLA albo z panelu trafia do wszystkich dostępnych świateł grupy;

@@ -37,10 +37,11 @@ Dla innych urządzeń sposób wejścia w tryb parowania i resetu podaje instrukc
 
 ![Parowanie w toku (przykładowe dane)](img/panel-parowanie-trwa.png)
 
-1. Otwórz panel i przejdź do sekcji „Parowanie urządzenia” ([zrzut](img/panel-parowanie.png)).
+1. Otwórz panel i przejdź do zakładki „Parowanie” ([zrzut](img/panel-parowanie.png)).
 2. Podaj kod: wpisz `MT:…` / kod numeryczny albo użyj „Zrób zdjęcie kodu QR” (telefon; panel musi być dostępny z LAN - [panel-www.md](panel-www.md#z-sieci-lan---z-hasłem)). Kod QR jest na naklejce urządzenia.
 3. Pole „Urządzenie jest już w sieci…” zostaw **odznaczone** (parowanie przez Bluetooth).
-4. „Sparuj”. Parowanie trwa do kilku minut (limit: 5 minut); wynik pojawi się pod formularzem.
+4. Wybierz w polu „Po sparowaniu”, co ma się stać z urządzeniem: osobny kanał SUPLA (domyślnie), dodanie światła do [grupy świateł](panel-www.md#grupy-świateł) albo brak kanału. Kanał SUPLA jest trwały, więc światło przeznaczone tylko do grupy trzeba wskazać tu, przed parowaniem.
+5. „Sparuj”. Parowanie trwa do kilku minut (limit: 5 minut); wynik pojawi się pod formularzem.
 
 Po udanym parowaniu urządzenie obsługiwanego typu samo pojawia się w „Kanały SUPLA”, a `supla-device` restartuje się z nową konfiguracją. Sprawdź działanie przyciskami Włącz/Wyłącz, potem ustaw funkcję kanału w SUPLA Cloud.
 
