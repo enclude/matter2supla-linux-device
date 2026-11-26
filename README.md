@@ -64,7 +64,7 @@ Co obsługuje łącznik:
 | Licznik energii gniazdka (napięcie, prąd, moc, energia) - kanał jednofazowy | działa na sprzęcie (GRILLPLATS) |
 | Czujniki, inne typy urządzeń | nieobsługiwane - można sparować i pobrać zrzut diagnostyczny |
 
-Jeszcze niesprawdzone na sprzęcie: instalacja `host/install.sh` na czystym systemie, odtworzenie kopii zapasowej na drugim urządzeniu, parowanie przez udostępnienie z innej aplikacji (bez Bluetootha), płytki ESP32-C6 i ESP32-H2 jako dongle, inne modele Raspberry Pi.
+Jeszcze niesprawdzone na sprzęcie: instalacja `host/install.sh` na czystym systemie, odtworzenie kopii zapasowej na drugim urządzeniu, płytki ESP32-C6 i ESP32-H2 jako dongle.
 
 ## Dokumentacja
 
