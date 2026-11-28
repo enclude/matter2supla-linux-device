@@ -66,8 +66,8 @@ Co obsługuje łącznik:
 | Grupy świateł: jeden kanał SUPLA dla kilku świateł tego samego rodzaju, obok zwykłych kanałów pojedynczych ([opis](docs/panel-www.md#grupy-świateł)) | działa na sprzęcie (cztery KAJPLATS GU10 w jednej grupie): parowanie prosto do grupy, stan w SUPLA, sterowanie z panelu; sterowanie grupą z aplikacji SUPLA do potwierdzenia |
 | Licznik energii gniazdka (napięcie, prąd, moc, energia) - kanał jednofazowy | działa na sprzęcie (GRILLPLATS) |
 | Czujnik zalania (KLIPPBOK) jako kanał SUPLA `BinaryParsed`, z poziomem baterii | działa na sprzęcie: kanał i poziom baterii widoczne w SUPLA Cloud ([zrzut](docs/widok-w-supla.md)); po zamoczeniu czujnik piszczy, a stan zmienia się w SUPLA (potwierdzone przez użytkownika) |
-| Czujnik temperatury i wilgotności (TIMMERFLOTTE) jako kanał SUPLA `ThermHygroMeterParsed`, z poziomem baterii | działa na sprzęcie: odczyty widoczne w aplikacji SUPLA, z baterią ([zrzut](docs/img/supla-app-kanaly.png)) |
-| Monitor jakości powietrza (ALPSTUGA): trzy kanały - temperatura i wilgotność, CO2, PM2.5 | działa na sprzęcie: temperatura, wilgotność, CO2 i PM2.5 widoczne w aplikacji SUPLA ([zrzut](docs/img/supla-app-kanaly.png)); bez indeksu jakości powietrza |
+| Czujnik temperatury i wilgotności (TIMMERFLOTTE) jako kanał SUPLA `ThermHygroMeterParsed`, z poziomem baterii | działa na sprzęcie: odczyty widoczne w aplikacji SUPLA, z baterią (zrzuty: [widok-w-supla.md](docs/widok-w-supla.md)) |
+| Monitor jakości powietrza (ALPSTUGA): trzy kanały - temperatura i wilgotność, CO2, PM2.5 | działa na sprzęcie: temperatura, wilgotność, CO2 i PM2.5 widoczne w aplikacji SUPLA (zrzuty: [widok-w-supla.md](docs/widok-w-supla.md)); bez indeksu jakości powietrza |
 | Inne czujniki i typy urządzeń | nieobsługiwane - można sparować i pobrać zrzut diagnostyczny |
 
 Jeszcze niesprawdzone na sprzęcie: instalacja `host/install.sh` na czystym systemie, odtworzenie kopii zapasowej na drugim urządzeniu, płytki ESP32-C6 i ESP32-H2 jako dongle.

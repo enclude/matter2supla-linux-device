@@ -6,7 +6,9 @@ Sprawdzone na Raspberry Pi: dostęp z LAN z logowaniem, zapis konta SUPLA, parow
 
 ![Panel Matter2Supla - widok całości](img/panel.png)
 
-*Zrzuty ekranu w tym dokumencie pokazują panel na przykładowych danych (skrypt `docs/img/make_screenshots.py`), nie prawdziwą instalację.* Na telefonie panel układa się w jedną kolumnę: [zrzut](img/panel-telefon.png).
+*Zrzuty ekranu w tym dokumencie pokazują panel na przykładowych danych (skrypt `docs/img/make_screenshots.py`), nie prawdziwą instalację.* Na telefonie panel układa się w jedną kolumnę (zrzut niżej).
+
+![Panel WWW na telefonie](img/panel-telefon.png)
 
 ## Dostęp
 
@@ -152,7 +154,9 @@ Sekcja pojawia się, gdy sparowane są urządzenia, które nie mają kanału SUP
 
 - kilka czujników na jednym endpoincie (ALPSTUGA: temperatura i wilgotność, CO2, PM2.5): przy ręcznym dodawaniu przycisk dodaje ten kanał, na którym go naciśnięto, ale zdejmuje też blokadę „bez kanału” z całego endpointu, więc pozostałe czujniki dopiszą się wtedy same;
 - typy jeszcze nieobsługiwane (np. czujniki ruchu i kontaktu) - można je sparować i pobrać diagnostykę, na podstawie której dopisuje się obsługę;
-- światła z regulacją bieli przy `lights_as_channels: false` - bez kanału SUPLA, ale z przyciskami włącz/wyłącz oraz suwakami jasności i bieli. Domyślnie takie światło dostaje kanał „ściemniacz CCT” i te same suwaki są w sekcji kanałów. Światło kolorowe (KAJPLATS CWS, [zrzut](img/panel-kanaly.png)) dostaje kanał „ściemniacz CCT + RGB”, a w szczegółach ma dodatkowo selektor koloru: koło barwy i nasycenia (kąt to barwa, odległość od środka to nasycenie, środek jest biały), osiem gotowych kolorów i pole `#rrggbb` z podglądem. Kolor trafia do żarówki po puszczeniu myszy lub palca (w trakcie przeciągania widać tylko podgląd, a odświeżanie listy jest wstrzymane), a jasność reguluje suwak obok. Wybór koloru przełącza żarówkę na tryb koloru, suwak bieli z powrotem na biel. Światła kolorowe nie należą do grup. Żarówka kolorowa sparowana przed tą funkcją jest rozpoznawana jako światło z regulacją bieli bez kanału; po aktualizacji łącznika zmienia rodzaj na „światło kolorowe” i kanał można jej dodać przyciskiem „Dodaj kanał”.
+- światła z regulacją bieli przy `lights_as_channels: false` - bez kanału SUPLA, ale z przyciskami włącz/wyłącz oraz suwakami jasności i bieli. Domyślnie takie światło dostaje kanał „ściemniacz CCT” i te same suwaki są w sekcji kanałów. Światło kolorowe (KAJPLATS CWS) dostaje kanał „ściemniacz CCT + RGB”, a w szczegółach ma dodatkowo selektor koloru: koło barwy i nasycenia (kąt to barwa, odległość od środka to nasycenie, środek jest biały), osiem gotowych kolorów i pole `#rrggbb` z podglądem. Kolor trafia do żarówki po puszczeniu myszy lub palca (w trakcie przeciągania widać tylko podgląd, a odświeżanie listy jest wstrzymane), a jasność reguluje suwak obok. Wybór koloru przełącza żarówkę na tryb koloru, suwak bieli z powrotem na biel. Światła kolorowe nie należą do grup. Żarówka kolorowa sparowana przed tą funkcją jest rozpoznawana jako światło z regulacją bieli bez kanału; po aktualizacji łącznika zmienia rodzaj na „światło kolorowe” i kanał można jej dodać przyciskiem „Dodaj kanał”.
+
+  ![Panel WWW - kanały SUPLA](img/panel-kanaly.png)
 
 - urządzenia sparowane z wyborem „Bez kanału SUPLA” - mają przycisk „Dodaj kanał”, a światła także suwaki w szczegółach.
 

@@ -31,7 +31,9 @@ Obrazy `ghcr.io/enclude/matter2supla-bridge` i `ghcr.io/enclude/matter2supla-sup
 Łącznik minutę po starcie, a potem raz na dobę pyta API GitHuba o najnowsze wydanie projektu (`https://api.github.com/repos/enclude/matter2supla-linux-device/releases/latest`). Żądanie nie zawiera żadnych danych użytkownika ani instalacji - tylko ogólny nagłówek `User-Agent: matter2supla`. Błąd sieci, brak wydań albo limit zapytań niczego nie zmienia w pracy łącznika (ślad jest tylko w logu na poziomie `DEBUG`).
 
 - W stopce panelu widać zainstalowaną wersję i skrót commita.
-- Gdy istnieje wydanie o wyższym numerze, u góry pojawia się komunikat „Dostępna wersja X” z odnośnikiem do opisu wydania i poleceniem aktualizacji ([zrzut](img/panel.png)). W panelu **nie ma** przycisku aktualizacji.
+- Gdy istnieje wydanie o wyższym numerze, u góry pojawia się komunikat „Dostępna wersja X” z odnośnikiem do opisu wydania i poleceniem aktualizacji. W panelu **nie ma** przycisku aktualizacji.
+
+  ![Panel WWW - widok całości](img/panel.png)
 - Wersje `dev` i `edge` nie są porównywane z wydaniami - komunikat się wtedy nie pojawia.
 
 Wyłączenie sprawdzania - w `config/devices.yaml` (edytuj przy zatrzymanym łączniku, patrz [panel-www.md](panel-www.md)):

@@ -45,7 +45,9 @@ Bez zmiennej `M2S_TEST_MQTT` ten test jest pomijany.
 ## Dopisywanie obsługi nowego typu urządzenia
 
 1. Sparuj urządzenie - trafi na listę „bez kanału” i nie zajmie numeru kanału SUPLA.
-2. Pobierz zrzut diagnostyczny (panel → „Diagnostyka”, [zrzut](img/panel-bez-kanalu.png), albo `docker compose run --rm bridge diagnostics <node_id> > node.json`). Domyślny zrzut nie zawiera numeru seryjnego ani danych sieci.
+2. Pobierz zrzut diagnostyczny (panel → „Diagnostyka”, albo `docker compose run --rm bridge diagnostics <node_id> > node.json`). Domyślny zrzut nie zawiera numeru seryjnego ani danych sieci.
+
+   ![Panel WWW - urządzenia bez kanału](img/panel-bez-kanalu.png)
 3. Zrzut ma format komendy `import_test_node` kontrolera - można go wczytać do `matter-server` jako węzeł testowy i rozwijać obsługę bez urządzenia. Ograniczenie: kontroler nie wykonuje komend na węzłach testowych.
 4. Przykładowe zrzuty leżą w `bridge/tests/fixtures/` (gniazdko GRILLPLATS, żarówka KAJPLATS E27 WS).
 5. Nowy typ dopisuje się w `config.py` (`DEVICE_TYPES`), `manager.py` (rozpoznanie endpointu), `core.py` (stan i komendy) oraz `supla_config.py` (typ kanału `supla-device`).

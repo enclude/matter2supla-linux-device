@@ -66,7 +66,9 @@ systemctl list-timers m2s-backup.timer
 
 Kopia leżąca na tej samej karcie SD nie chroni przed jej awarią. Możliwości:
 
-- **panel WWW**, sekcja „Kopie zapasowe” ([zrzut](img/panel-kopie.png)) → „Pobierz” - połączenie nie jest szyfrowane, więc tylko w zaufanej sieci;
+- **panel WWW**, sekcja „Kopie zapasowe” → „Pobierz” - połączenie nie jest szyfrowane, więc tylko w zaufanej sieci;
+
+  ![Panel WWW - kopie zapasowe](img/panel-kopie.png)
 - skopiowanie pliku z katalogu `backups/` własnym sposobem (np. `scp`). Katalog ma uprawnienia 700 i należy do uid 1000.
 
 ## Odtworzenie na innym urządzeniu

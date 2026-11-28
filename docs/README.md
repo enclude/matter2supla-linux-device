@@ -27,19 +27,49 @@ Przegląd projektu, wymagania i stan prac: [../README.md](../README.md).
 
 Zrzuty panelu wykonane na przykładowych danych skryptem [`img/make_screenshots.py`](img/make_screenshots.py); opis sekcji w [panel-www.md](panel-www.md).
 
-| Widok | Plik |
-| --- | --- |
-| Cały panel (komputer) | [img/panel.png](img/panel.png) |
-| Panel na telefonie (zakładka „Parowanie”) | [img/panel-telefon.png](img/panel-telefon.png) |
-| Logowanie | [img/panel-logowanie.png](img/panel-logowanie.png) |
-| Kanały SUPLA (z żarówką kolorową i selektorem koloru, czujnikami) | [img/panel-kanaly.png](img/panel-kanaly.png) |
-| Grupy świateł | [img/panel-grupy.png](img/panel-grupy.png) |
-| Logi | [img/panel-logi.png](img/panel-logi.png) |
-| Urządzenia Matter bez kanału | [img/panel-bez-kanalu.png](img/panel-bez-kanalu.png) |
-| Konto SUPLA | [img/panel-konto-supla.png](img/panel-konto-supla.png) |
-| Parowanie urządzenia | [img/panel-parowanie.png](img/panel-parowanie.png) |
-| Parowanie w toku | [img/panel-parowanie-trwa.png](img/panel-parowanie-trwa.png) |
-| Kopie zapasowe | [img/panel-kopie.png](img/panel-kopie.png) |
+### Cały panel (komputer)
+
+![Panel WWW - widok całości](img/panel.png)
+
+### Panel na telefonie (zakładka „Parowanie”)
+
+![Panel WWW na telefonie](img/panel-telefon.png)
+
+### Logowanie
+
+![Panel WWW - logowanie](img/panel-logowanie.png)
+
+### Kanały SUPLA (z żarówką kolorową i selektorem koloru, czujnikami)
+
+![Panel WWW - kanały SUPLA](img/panel-kanaly.png)
+
+### Grupy świateł
+
+![Panel WWW - grupy świateł](img/panel-grupy.png)
+
+### Logi
+
+![Panel WWW - logi](img/panel-logi.png)
+
+### Urządzenia Matter bez kanału
+
+![Panel WWW - urządzenia bez kanału](img/panel-bez-kanalu.png)
+
+### Konto SUPLA
+
+![Panel WWW - konto SUPLA](img/panel-konto-supla.png)
+
+### Parowanie urządzenia
+
+![Panel WWW - parowanie](img/panel-parowanie.png)
+
+### Parowanie w toku
+
+![Panel WWW - parowanie w toku](img/panel-parowanie-trwa.png)
+
+### Kopie zapasowe
+
+![Panel WWW - kopie zapasowe](img/panel-kopie.png)
 
 ## Konwencje w tej dokumentacji
 

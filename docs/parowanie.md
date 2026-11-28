@@ -9,7 +9,9 @@ Są dwie drogi. Sprawdzona jest pierwsza.
 
 ## Przed pierwszym parowaniem
 
-Sprawdź w panelu (znaczniki w nagłówku, [zrzut](img/panel.png)) albo poleceniem:
+Sprawdź w panelu (znaczniki w nagłówku) albo poleceniem:
+
+![Panel WWW - widok całości](img/panel.png)
 
 ```bash
 docker compose run --rm bridge nodes
@@ -37,7 +39,9 @@ Dla innych urządzeń sposób wejścia w tryb parowania i resetu podaje instrukc
 
 ![Parowanie w toku (przykładowe dane)](img/panel-parowanie-trwa.png)
 
-1. Otwórz panel i przejdź do zakładki „Parowanie” ([zrzut](img/panel-parowanie.png)).
+1. Otwórz panel i przejdź do zakładki „Parowanie”.
+
+   ![Panel WWW - parowanie](img/panel-parowanie.png)
 2. Podaj kod: wpisz `MT:…` / kod numeryczny albo użyj „Zrób zdjęcie kodu QR” (telefon; panel musi być dostępny z LAN - [panel-www.md](panel-www.md#z-sieci-lan---z-hasłem)). Kod QR jest na naklejce urządzenia.
 3. Pole „Urządzenie jest już w sieci…” zostaw **odznaczone** (parowanie przez Bluetooth).
 4. Wybierz w polu „Po sparowaniu”, co ma się stać z urządzeniem: osobny kanał SUPLA (domyślnie), dodanie światła do [grupy świateł](panel-www.md#grupy-świateł) albo brak kanału. Kanał SUPLA jest trwały, więc światło przeznaczone tylko do grupy trzeba wskazać tu, przed parowaniem.
@@ -59,7 +63,9 @@ docker compose run --rm bridge commission --network-only
 
 ## Ile to trwa i jak to śledzić
 
-Udane parowanie przez Bluetooth trwa ok. 2 minut na urządzenie: dane idą małymi porcjami, a kroków jest kilkanaście (uwierzytelnienie kodem, sprawdzenie certyfikatów, przekazanie sieci Thread, ponowne połączenie już przez Thread). Postęp widać w panelu w zakładce „Logi” (źródło „Kontroler Matter”, filtr `commissioning step`) - [zrzut](img/panel-logi.png).
+Udane parowanie przez Bluetooth trwa ok. 2 minut na urządzenie: dane idą małymi porcjami, a kroków jest kilkanaście (uwierzytelnienie kodem, sprawdzenie certyfikatów, przekazanie sieci Thread, ponowne połączenie już przez Thread). Postęp widać w panelu w zakładce „Logi” (źródło „Kontroler Matter”, filtr `commissioning step`).
+
+![Panel WWW - logi](img/panel-logi.png)
 
 Jeśli urządzenie nie jest w trybie parowania, kontroler szuka go przez 3 minuty i dopiero wtedy zgłasza błąd. Po fabrycznym resecie urządzenie rozgłasza się pod nowym adresem Bluetooth; kontroler najpierw próbuje starego (w dzienniku „interface not found in proxy object”), a po chwili znajduje nowy - to nie jest błąd do naprawiania.
 

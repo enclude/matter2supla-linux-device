@@ -77,7 +77,9 @@ Gdy kontroler zgłosi nowy węzeł, łącznik szuka endpointów z klastrem OnOff
 - OnOff + LevelControl + temperatura bieli → typ `light_cct`, kanał SUPLA `MatterLight` (ściemniacz CCT, własne rozszerzenie `supla-device`); przy `lights_as_channels: false` bez kanału, sterowanie tylko z panelu;
 - OnOff + LevelControl + temperatura bieli + barwa i nasycenie (ColorCapabilities, bit HS) → typ `light_rgb`, kanał SUPLA `MatterRgbLight`; takie światła nie należą do grup (grupa obejmuje tylko `light_cct`);
 - inne światła (np. sam ściemniacz bez regulacji bieli) → bez kanału, jeszcze nieobsługiwane;
-- endpoint z pomiarem mocy lub energii → typ `meter`, kanał SUPLA `MatterMeter` (jednofazowy licznik energii, własne rozszerzenie `supla-device`); w panelu stoi pod swoim gniazdkiem ([zrzut](img/panel-kanaly.png)), a jego nazwa wynika z nazwy gniazdka;
+- endpoint z pomiarem mocy lub energii → typ `meter`, kanał SUPLA `MatterMeter` (jednofazowy licznik energii, własne rozszerzenie `supla-device`); w panelu stoi pod swoim gniazdkiem, a jego nazwa wynika z nazwy gniazdka;
+
+  ![Panel WWW - kanały SUPLA](img/panel-kanaly.png)
 - czujnik zalania (BooleanState na endpoincie typu 0x0043) → typ `leak`, kanał SUPLA `BinaryParsed`; dopisywany od razu jak gniazdko (przy `auto_add: true`);
 - temperatura (0x0402) razem z wilgotnością (0x0405) na jednym lub różnych endpointach → typ `climate`, kanał SUPLA `ThermHygroMeterParsed`; sama temperatura bez wilgotności jeszcze nieobsługiwana;
 - stężenie CO2 (0x040D) i pył PM2.5 (0x042A) → typy `co2` i `pm25`, kanały `GeneralPurposeMeasurementParsed` z domyślną jednostką ppm i µg/m³ (w SUPLA Cloud można ją zmienić). ALPSTUGA daje więc trzy kanały: `climate`, `co2`, `pm25`, a ich nazwy dostają przyrostek („ — CO2” itd.). Endpoint czujnika z klastrem OnOff (ALPSTUGA ma go na endpoincie czujnika) nie jest traktowany jak gniazdko. Indeks jakości powietrza (AirQuality 0x005B) nie ma jeszcze kanału;

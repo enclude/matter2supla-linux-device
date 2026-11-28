@@ -183,13 +183,21 @@ docker compose run --rm bridge set-thread-dataset "$(docker exec otbr ot-ctl dat
 docker compose run --rm bridge nodes
 ```
 
-Drugie polecenie powinno pokazać `dataset Thread ustawiony: True` oraz `Bluetooth: True`. Dataset można też wkleić w panelu (rozwijana sekcja „Dataset sieci Thread” na dole [„Parowania urządzenia”](img/panel-parowanie.png)).
+Drugie polecenie powinno pokazać `dataset Thread ustawiony: True` oraz `Bluetooth: True`. Dataset można też wkleić w panelu (rozwijana sekcja „Dataset sieci Thread” na dole „Parowania urządzenia”).
+
+![Panel WWW - parowanie](img/panel-parowanie.png)
 
 **Dataset to klucz do sieci Thread** - nie zapisuj go w repozytorium ani w notatkach dostępnych dla innych.
 
 ## 11. Dalej
 
-1. [Panel WWW](panel-www.md) - dostęp, hasło, konto SUPLA ([jak wygląda panel](img/panel.png), [logowanie](img/panel-logowanie.png), [konto SUPLA](img/panel-konto-supla.png)).
+1. [Panel WWW](panel-www.md) - dostęp, hasło, konto SUPLA.
+
+   ![Panel WWW - widok całości](img/panel.png)
+
+   ![Panel WWW - logowanie](img/panel-logowanie.png)
+
+   ![Panel WWW - konto SUPLA](img/panel-konto-supla.png)
 2. [Parowanie urządzeń](parowanie.md).
 3. [Kopie zapasowe](kopie-zapasowe.md) - włącz harmonogram od razu po pierwszym parowaniu.
 
