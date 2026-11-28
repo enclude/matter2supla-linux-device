@@ -179,7 +179,7 @@ async def test_group_is_one_channel_and_singles_stay(paths):
     assert snapshot["devices"][1]["last_seen"] is not None and snapshot["devices"][0]["product"]
     assert snapshot["devices"][1]["members_available"] == 1
     assert snapshot["lights"] == [
-        {"node_id": "3", "endpoint": 1, "label": manager.config.devices[0].caption, "available": True, "supla_channel": 0}
+        {"node_id": "3", "endpoint": 1, "kind": "light_group", "label": manager.config.devices[0].caption, "available": True, "supla_channel": 0}
     ]
     with pytest.raises(ManagerError):
         await manager.set_group_members(group.name, [(9, 1)])  # nie ma takiego światła

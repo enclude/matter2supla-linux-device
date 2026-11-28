@@ -18,7 +18,10 @@ import aiomqtt
 
 from . import light, meter, sensor
 from .config import (
+    GROUP_MEMBER_TYPE,
     GROUP_TYPE,
+    GROUP_TYPES,
+    RGB_GROUP_TYPE,
     MAX_SUPLA_CHANNEL,
     NO_CHANNEL,
     Config,
@@ -27,7 +30,7 @@ from .config import (
     check_devices,
     save_config,
 )
-from .core import LIGHT_TYPES, RGB_TYPE, BridgeCore
+from .core import LIGHT_TYPES, RGB_KINDS, RGB_TYPE, BridgeCore
 from .diagnostics import build_diagnostics
 from .matter_client import MatterConnectionError, MatterError
 from .supla_config import ChannelConflictError, write_supla_config
@@ -143,11 +146,11 @@ class Manager:
     def _mapped(self) -> set[tuple[int, int, str]]:
         # trzeci człon: miejsce na endpoincie (licznik i czujniki mogą dzielić endpoint z innymi urządzeniami)
         return {
-            (d.node_id, d.endpoint, sensor.slot_of(d.type)) for d in self.config.devices if d.type != GROUP_TYPE
+            (d.node_id, d.endpoint, sensor.slot_of(d.type)) for d in self.config.devices if d.type not in GROUP_TYPES
         }
 
     def groups(self) -> list[Device]:
-        return [d for d in self.config.devices if d.type == GROUP_TYPE]
+        return [d for d in self.config.devices if d.type in GROUP_TYPES]
 
     def _groups_of(self, target: tuple[int, int]) -> list[Device]:
         return [g for g in self.groups() if target in g.members]
@@ -217,7 +220,7 @@ class Manager:
                 kind = endpoint_type(attrs, endpoint)
                 entry = {**base, "endpoint": endpoint, "type": kind, "caption": self._local_name(node_id, endpoint)}
                 can_be_channel = kind == "onoff" or (kind in SINGLE_LIGHTS and self.config.lights_as_channels)
-                in_groups = self._groups_of((node_id, endpoint)) if kind == "light_cct" else []
+                in_groups = self._groups_of((node_id, endpoint)) if kind in SINGLE_LIGHTS else []
                 # `manual`: kanał nie powstanie sam, ale da się go dodać przyciskiem w panelu.
                 if in_groups:
                     names = ", ".join(f"„{g.caption or g.name}”" for g in in_groups)
@@ -320,7 +323,7 @@ class Manager:
         old_topics = set(self.core.set_topics)
         new_config = dataclasses.replace(self.config, devices=tuple(devices))
         # Nazwa lokalna dotyczy tylko endpointu bez kanału: po dodaniu kanału żyje w jego `caption`.
-        own = {(d.node_id, d.endpoint) for d in devices if d.type not in (GROUP_TYPE, "meter")}
+        own = {(d.node_id, d.endpoint) for d in devices if d.type not in (*GROUP_TYPES, "meter")}
         kept = [n for n in (self.config.names if names is None else names) if (n[0], n[1]) not in own]
         new_config = dataclasses.replace(new_config, names=tuple(kept))
         if no_channel is not None:
@@ -397,32 +400,40 @@ class Manager:
     # --- grupy świateł ------------------------------------------------------
 
     def lights(self) -> list[dict[str, Any]]:
-        """Światła z regulacją bieli, które mogą należeć do grupy (także te już w grupach)."""
-        own = {(d.node_id, d.endpoint): d for d in self.config.devices if d.type == "light_cct"}
+        """Światła, które mogą należeć do grupy (także te już w grupach); `kind` to rodzaj grupy, do której pasują."""
+        own = {(d.node_id, d.endpoint): d for d in self.config.devices if d.type in SINGLE_LIGHTS}
+        kind_of = {member: group for group, member in GROUP_MEMBER_TYPE.items()}
         found: dict[tuple[int, int], dict[str, Any]] = {}
         for node_id, node in sorted(self.core.nodes.items()):
             attrs = node["attributes"]
             for endpoint in onoff_endpoints(attrs):
-                if endpoint_type(attrs, endpoint) != "light_cct":
+                member_type = endpoint_type(attrs, endpoint)
+                if member_type not in kind_of:
                     continue
                 dev = own.get((node_id, endpoint))
                 label = (dev.caption or dev.name) if dev else str(
                     self._local_name(node_id, endpoint) or attrs.get("0/40/5") or attrs.get("0/40/3") or "Światło"
                 )
                 found[(node_id, endpoint)] = {
+                    "kind": kind_of[member_type],
                     "label": label,
                     "available": bool(node["available"]),
                     "supla_channel": dev.supla_channel if dev else None,
                 }
         for group in self.groups():
             for target in group.members:
-                found.setdefault(target, {"label": "nieznane urządzenie", "available": False, "supla_channel": None})
+                found.setdefault(
+                    target,
+                    {"kind": group.type, "label": "nieznane urządzenie", "available": False, "supla_channel": None},
+                )
         return [
             {"node_id": str(node_id), "endpoint": endpoint, **info}
             for (node_id, endpoint), info in sorted(found.items())
         ]
 
-    def _check_members(self, members: list[tuple[int, int]], current: tuple[tuple[int, int], ...] = ()) -> list[tuple[int, int]]:
+    def _check_members(
+        self, members: list[tuple[int, int]], current: tuple[tuple[int, int], ...] = (), kind: str = GROUP_TYPE
+    ) -> list[tuple[int, int]]:
         members = list(dict.fromkeys(members))
         if len(members) > MAX_GROUP_MEMBERS:
             raise ManagerError(f"grupa może mieć najwyżej {MAX_GROUP_MEMBERS} świateł")
@@ -430,7 +441,7 @@ class Manager:
             if (node_id, endpoint) in current:
                 continue  # światło już w grupie zostaje, nawet gdy chwilowo nie odpowiada
             node = self.core.nodes.get(node_id)
-            if node is None or endpoint_type(node["attributes"], endpoint) != "light_cct":
+            if node is None or endpoint_type(node["attributes"], endpoint) != GROUP_MEMBER_TYPE[kind]:
                 raise ManagerError(
                     f"węzeł {node_id} endpoint {endpoint} nie jest światłem z regulacją jasności i bieli (bez koloru)"
                 )
@@ -448,8 +459,8 @@ class Manager:
         Światło wyjęte z grupy nie dostaje kanału samo (kanał jest nieusuwalny) - trafia na listę
         i czeka na decyzję w panelu. Światło należące do jakiejś grupy na liście być nie musi.
         """
-        grouped = {t for d in devices if d.type == GROUP_TYPE for t in d.members}
-        own = {(d.node_id, d.endpoint) for d in devices if d.type == "light_cct"}
+        grouped = {t for d in devices if d.type in GROUP_TYPES for t in d.members}
+        own = {(d.node_id, d.endpoint) for d in devices if d.type in SINGLE_LIGHTS}
         result = [t for t in self.config.no_channel if t not in grouped]
         result += [t for t in released if t not in grouped and t not in own]
         return result
@@ -460,14 +471,16 @@ class Manager:
             raise ManagerError("wyczerpano numery kanałów SUPLA (0–127)")
         return channel
 
-    async def create_group(self, caption: str, members: list[tuple[int, int]]) -> Device:
+    async def create_group(self, caption: str, members: list[tuple[int, int]], kind: str = GROUP_TYPE) -> Device:
         """Tworzy grupę świateł. Trwały kanał SUPLA powstaje dopiero z pierwszym światłem."""
         caption = caption.strip()[:100]
         if not caption:
             raise ManagerError("podaj nazwę grupy")
         async with self._change_lock:
             devices = list(self.config.devices)
-            checked = tuple(self._check_members(members))
+            if kind not in GROUP_TYPES:
+                raise ManagerError("nieznany rodzaj grupy")
+            checked = tuple(self._check_members(members, (), kind))
             channel = self._next_channel(devices) if checked else NO_CHANNEL
             taken = {d.name for d in devices} | {d.name for d in self._extras}
             counter = 1
@@ -477,7 +490,7 @@ class Manager:
                 name=name,
                 node_id=0,
                 endpoint=0,
-                type=GROUP_TYPE,
+                type=kind,
                 supla_channel=channel,
                 caption=caption,
                 members=checked,
@@ -493,7 +506,7 @@ class Manager:
 
     async def _set_group_members(self, name: str, members: list[tuple[int, int]]) -> Device:
         group = self._find_group(name)
-        checked = tuple(self._check_members(members, group.members))
+        checked = tuple(self._check_members(members, group.members, group.type))
         updated = dataclasses.replace(group, members=checked)
         if group.supla_channel == NO_CHANNEL and checked:
             # Pierwsze światło: dopiero teraz grupa zajmuje (nieusuwalny) kanał SUPLA.
@@ -517,9 +530,9 @@ class Manager:
         dev = self._find(name)
         if dev.type not in LIGHT_TYPES:
             raise ManagerError("to urządzenie nie jest światłem")
-        if color is not None and dev.type != RGB_TYPE:
+        if color is not None and dev.type not in RGB_KINDS:
             raise ManagerError("to światło nie ma regulacji koloru")
-        if dev.type == RGB_TYPE:
+        if dev.type in RGB_KINDS:
             rgb = None
             if color is not None:
                 if not re.fullmatch(r"#[0-9a-fA-F]{6}", color):
@@ -550,7 +563,7 @@ class Manager:
     async def set_caption(self, name: str, caption: str) -> None:
         async with self._change_lock:
             target = self._find(name)
-            if target.supla_channel == NO_CHANNEL and target.type != GROUP_TYPE:
+            if target.supla_channel == NO_CHANNEL and target.type not in GROUP_TYPES:
                 await self._set_name(target.node_id, target.endpoint, caption)
                 return
             if target.type == "meter" and any(
@@ -753,10 +766,10 @@ class Manager:
                 ]
                 await self._apply(list(self.config.devices), list(self.config.no_channel) + held)
                 return "Urządzenie zostaje bez kanału SUPLA; kanał można dodać z listy urządzeń."
-            lights = [(node_id, e) for e in endpoints if endpoint_type(attributes, e) == "light_cct"]
-            if not lights:
-                return "To urządzenie nie trafiło do grupy (grupy obejmują tylko światła z regulacją jasności i bieli, bez koloru)."
             group = self._find_group(target[len(TARGET_GROUP_PREFIX):])
+            lights = [(node_id, e) for e in endpoints if endpoint_type(attributes, e) == GROUP_MEMBER_TYPE[group.type]]
+            if not lights:
+                return "To urządzenie nie trafiło do grupy (grupa przyjmuje tylko światła tego samego rodzaju, co jej dotychczasowe)."
             await self._set_group_members(group.name, list(group.members) + lights)
             return f"Światło dodane do grupy „{group.caption or group.name}”."
 
@@ -772,10 +785,10 @@ class Manager:
 
     def _device_view(self, dev: Device) -> dict[str, Any]:
         view = self._plain_view(dev)
-        if dev.type == GROUP_TYPE:
+        if dev.type in GROUP_TYPES:
             # Światła grupy z własnym widokiem (stan, suwaki, nazwa do komend) - panel pokazuje je pod grupą.
             by_target = {
-                (d.node_id, d.endpoint): d for d in self.core.devices if d.type == "light_cct"
+                (d.node_id, d.endpoint): d for d in self.core.devices if d.type == GROUP_MEMBER_TYPE[dev.type]
             }
             members = []
             for node_id, endpoint in dev.members:
@@ -814,7 +827,7 @@ class Manager:
             "firmware": attrs.get("0/40/10"),
             "last_seen": self.core.last_seen(dev.node_id),
             "groups": [g.caption or g.name for g in self._groups_of((dev.node_id, dev.endpoint))]
-            if dev.type == "light_cct"
+            if dev.type in SINGLE_LIGHTS
             else [],
             "caption_linked": dev.type == "meter"
             and any(d.type == "onoff" and d.node_id == dev.node_id for d in self.config.devices),
@@ -823,10 +836,10 @@ class Manager:
             current = self.core.light_state(dev)
             view["brightness"] = current["brightness"] if current else None
             view["temperature"] = current["temperature"] if current else None
-            if dev.type == RGB_TYPE:
+            if dev.type in RGB_KINDS:
                 view["mode"] = "color" if current and current["mode"] == light.MODE_COLOR else "white"
                 view["color"] = "#%02x%02x%02x" % current["rgb"] if current else None  # type: ignore[str-format]
-        if dev.type == GROUP_TYPE:
+        if dev.type in GROUP_TYPES:
             view["members_available"] = sum(
                 1 for member in self.core.members_of(dev) if self.core.light_state(member) is not None
             )

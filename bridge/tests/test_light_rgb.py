@@ -11,10 +11,11 @@ import pytest
 from m2s_bridge import light
 from m2s_bridge.config import Device, parse_config
 from m2s_bridge.core import BridgeCore
-from m2s_bridge.manager import endpoint_type
+from m2s_bridge.manager import Manager, ManagerError, endpoint_type
 from m2s_bridge.supla_config import build_supla_config
 
 from test_light import Recorder, Sender
+from test_manager import FakeClient, FakeMqtt
 
 FIXTURES = Path(__file__).parent / "fixtures"
 BULB = Device(name="kolor", node_id=14, endpoint=1, type="light_rgb", supla_channel=0)
@@ -125,3 +126,70 @@ def test_supla_channel_uses_rgb_extension_type():
     assert channel["type"] == "MatterRgbLight"
     assert channel["state_topic"] == STATE and channel["set_topic"] == SET
     assert built["supla"]["proto"] == 28
+
+
+# --- grupy świateł kolorowych ----------------------------------------------------------
+
+from m2s_bridge.config import load_config  # noqa: E402
+from test_groups import paths  # noqa: E402,F401  (fixture)
+from test_light import bulb_node  # noqa: E402
+
+
+def cws_at(node_id, **attributes):
+    node = cws_node(**attributes)
+    node["node_id"] = node_id
+    return node
+
+
+async def rgb_manager(paths, *nodes):  # noqa: F811
+    manager = Manager(parse_config({}), paths[0], paths[1], "svr.example.org", "a@example.org")
+    manager.mqtt = FakeMqtt()
+    manager.matter_client = FakeClient()
+    await manager.core.matter_connected(manager.matter_client, list(nodes))
+    return manager
+
+
+async def test_rgb_group_is_one_matterrgblight_channel(paths):  # noqa: F811
+    manager = await rgb_manager(paths, cws_at(14), cws_at(18))
+    await manager.auto_add()
+    group = await manager.create_group("Salon", [(14, 1), (18, 1)], "light_rgb_group")
+    assert group.type == "light_rgb_group" and group.members == ((14, 1), (18, 1))
+    channels = build_supla_config(manager.config, "svr.example.org", "a@example.org")["channels"]
+    assert [c["type"] for c in channels if c["name"] == group.name] == ["MatterRgbLight"]
+    assert load_config(paths[0]).devices[-1].type == "light_rgb_group"  # przetrwa zapis i odczyt
+    kinds = {(light["node_id"], light["kind"]) for light in manager.snapshot()["lights"]}
+    assert kinds == {("14", "light_rgb_group"), ("18", "light_rgb_group")}
+
+
+async def test_rgb_group_state_and_commands_fan_out(paths):  # noqa: F811
+    manager = await rgb_manager(paths, cws_at(14), cws_at(18, **{"1/768/8": light.COLOR_MODE_HS, "1/768/0": 0, "1/768/1": 254}))
+    await manager.auto_add()
+    group = await manager.create_group("Salon", [(14, 1), (18, 1)], "light_rgb_group")
+    state = manager.core.state_payload(group).split()
+    assert state[:3] == ["1", "1", "100"] and len(state) == 7  # pierwsze świecące światło: biel
+    await manager.core.handle_mqtt(f"m2s/group/{group.name}/set", "2 50 0 0 0 255")
+    hue = [args for name, args in manager.matter_client.calls if name == "device_command" and args[3] == "MoveToHueAndSaturation"]
+    assert sorted(a[0] for a in hue) == [14, 18]  # kolor trafił do obu świateł
+    assert all(a[4]["hue"] == 169 and a[4]["saturation"] == 254 for a in hue)  # niebieski
+    levels = [args for name, args in manager.matter_client.calls if name == "device_command" and args[3] == "MoveToLevelWithOnOff"]
+    assert sorted(a[0] for a in levels) == [14, 18]
+
+
+async def test_groups_stay_homogeneous(paths):  # noqa: F811
+    manager = await rgb_manager(paths, cws_at(14), bulb_node_at(3))
+    await manager.auto_add()
+    with pytest.raises(ManagerError):
+        await manager.create_group("Mieszana", [(14, 1), (3, 1)], "light_rgb_group")
+    with pytest.raises(ManagerError):
+        await manager.create_group("Biel", [(14, 1)], "light_group")
+    with pytest.raises(ManagerError):
+        await manager.create_group("Nieznana", [], "nonsense")
+    group = await manager.create_group("Kolor", [(14, 1)], "light_rgb_group")
+    with pytest.raises(ManagerError):
+        await manager.set_group_members(group.name, [(14, 1), (3, 1)])
+
+
+def bulb_node_at(node_id):
+    node = bulb_node()
+    node["node_id"] = node_id
+    return node

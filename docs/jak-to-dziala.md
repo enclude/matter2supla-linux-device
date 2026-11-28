@@ -75,7 +75,7 @@ Gdy kontroler zgłosi nowy węzeł, łącznik szuka endpointów z klastrem OnOff
 
 - OnOff bez LevelControl → typ `onoff`, kanał SUPLA `CustomRelay`; przy `auto_add: true` dopisywany od razu z kolejnym numerem;
 - OnOff + LevelControl + temperatura bieli → typ `light_cct`, kanał SUPLA `MatterLight` (ściemniacz CCT, własne rozszerzenie `supla-device`); przy `lights_as_channels: false` bez kanału, sterowanie tylko z panelu;
-- OnOff + LevelControl + temperatura bieli + barwa i nasycenie (ColorCapabilities, bit HS) → typ `light_rgb`, kanał SUPLA `MatterRgbLight`; takie światła nie należą do grup (grupa obejmuje tylko `light_cct`);
+- OnOff + LevelControl + temperatura bieli + barwa i nasycenie (ColorCapabilities, bit HS) → typ `light_rgb`, kanał SUPLA `MatterRgbLight`; mogą należeć do grup typu `light_rgb_group`, ale nie do `light_group` (grupa obejmuje światła jednego rodzaju);
 - inne światła (np. sam ściemniacz bez regulacji bieli) → bez kanału, jeszcze nieobsługiwane;
 - endpoint z pomiarem mocy lub energii → typ `meter`, kanał SUPLA `MatterMeter` (jednofazowy licznik energii, własne rozszerzenie `supla-device`); w panelu stoi pod swoim gniazdkiem, a jego nazwa wynika z nazwy gniazdka;
 
@@ -87,7 +87,7 @@ Gdy kontroler zgłosi nowy węzeł, łącznik szuka endpointów z klastrem OnOff
 
 Wyjątki od automatu: endpointy z listy `no_channel` w `devices.yaml` (parowanie z wyborem „Bez kanału SUPLA”, światło wyjęte z grupy) oraz światła sparowane od razu do grupy.
 
-Grupa świateł to wpis typu `light_group` z listą `members` (pary węzeł/endpoint) zamiast własnego węzła. Dla SUPLA jest zwykłym kanałem `MatterLight`; tematy MQTT: `<prefix>/group/<nazwa>/state|set`. Łącznik rozsyła polecenie do wszystkich świateł grupy i składa z nich jeden stan. Opis w panelu: [panel-www.md](panel-www.md#grupy-świateł).
+Grupa świateł to wpis typu `light_group` (światła `light_cct`, kanał SUPLA `MatterLight`) albo `light_rgb_group` (światła `light_rgb`, kanał `MatterRgbLight`, format tematów jak dla pojedynczej żarówki kolorowej) z listą `members` (pary węzeł/endpoint) zamiast własnego węzła. Dla SUPLA jest zwykłym kanałem światła; tematy MQTT: `<prefix>/group/<nazwa>/state|set`. Łącznik rozsyła polecenie do wszystkich świateł grupy i składa z nich jeden stan. Opis w panelu: [panel-www.md](panel-www.md#grupy-świateł).
 
 Po dopisaniu łącznik zapisuje `config/devices.yaml` i generuje `config/supla/supla-device.yaml`. Kontener `supla` wykrywa zmianę pliku (sprawdza co 2 s) i restartuje `supla-device`.
 

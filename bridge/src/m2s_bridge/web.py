@@ -305,7 +305,7 @@ def create_app(
 
     async def group_create(request: web.Request) -> web.Response:
         data = await body(request)
-        group = await manager.create_group(str(data.get("caption", "")), members(data))
+        group = await manager.create_group(str(data.get("caption", "")), members(data), str(data.get("kind") or "light_group"))
         return web.json_response({"ok": True, "name": group.name, "supla_channel": group.supla_channel})
 
     async def group_members(request: web.Request) -> web.Response:

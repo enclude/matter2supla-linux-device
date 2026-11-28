@@ -187,7 +187,12 @@
       <div class="field">
         <label for="group-caption">Nowa grupa</label>
         <input type="text" id="group-caption" maxlength="100" autocomplete="off" placeholder="np. Żyrandol w salonie" required>
-        <p class="hint">Grupa to jeden kanał SUPLA (ściemniacz z regulacją bieli) sterujący kilkoma światłami naraz. Kanał powstaje dopiero po dodaniu pierwszego światła i od tej chwili nie da się go usunąć; skład grupy można potem zmieniać dowolnie, np. po wymianie żarówki. Pojedyncze światła nadal można dodawać jako osobne kanały.</p>
+        <label for="group-kind">Rodzaj świateł w grupie</label>
+        <select id="group-kind">
+          <option value="light_group">Z regulacją bieli (np. KAJPLATS WS)</option>
+          <option value="light_rgb_group">Kolorowe (np. KAJPLATS CWS)</option>
+        </select>
+        <p class="hint">Grupa jest jednorodna: należą do niej tylko światła jednego rodzaju. Rodzaju grupy nie da się potem zmienić. Grupa to jeden kanał SUPLA (ściemniacz CCT albo CCT + RGB) sterujący kilkoma światłami naraz. Kanał powstaje dopiero po dodaniu pierwszego światła i od tej chwili nie da się go usunąć; skład grupy można potem zmieniać dowolnie, np. po wymianie żarówki. Pojedyncze światła nadal można dodawać jako osobne kanały.</p>
       </div>
       <button>Utwórz grupę</button>
     </form>
@@ -334,6 +339,8 @@ function renderBackups(state) {
   }));
 }
 
+const GROUP_KINDS = { light_group: "light_cct", light_rgb_group: "light_rgb" };  // rodzaj grupy -> rodzaj jej świateł
+const isGroup = (dev) => dev.type in GROUP_KINDS;
 const $ = (id) => document.getElementById(id);
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 const STATE_LABEL = { on: "włączone", off: "wyłączone", measuring: "pomiar", unavailable: "niedostępne" };
@@ -383,7 +390,7 @@ function diagLink(nodeId) {
 
 const sliderHold = {};  // nazwa urządzenia -> czas ostatniego ruchu suwakiem (nie nadpisujemy w trakcie)
 const openRows = new Set();  // rozwinięte wiersze - lista jest przebudowywana co 2 s
-const TYPE_LABEL = { onoff: "gniazdko / przekaźnik", light_cct: "światło z regulacją bieli", light_rgb: "światło kolorowe (RGB + biel)", meter: "licznik energii", leak: "czujnik zalania", climate: "czujnik temperatury i wilgotności", co2: "czujnik CO2", pm25: "czujnik pyłu PM2.5", light_group: "grupa świateł" };
+const TYPE_LABEL = { onoff: "gniazdko / przekaźnik", light_cct: "światło z regulacją bieli", light_rgb: "światło kolorowe (RGB + biel)", meter: "licznik energii", leak: "czujnik zalania", climate: "czujnik temperatury i wilgotności", co2: "czujnik CO2", pm25: "czujnik pyłu PM2.5", light_group: "grupa świateł", light_rgb_group: "grupa świateł kolorowych" };
 const RENAME_PROMPT = "Nazwa w panelu (lokalna, nie jest wysyłana do SUPLA Cloud). Kanał dostaje ją w SUPLA tylko przy pierwszej rejestracji, np. po zmianie konta lub serwera - istniejącej nazwy w Cloud nie zmienia:";
 const SUPLA_CLOUD = "https://cloud.supla.org";  // przekierowuje na serwer konta
 let lastState = { devices: [] };
@@ -417,7 +424,7 @@ function commandButtons(dev) {
   if (dev.can_identify) {
     // Pomaga znaleźć konkretne urządzenie: żarówka pulsuje, gniazdko miga diodą.
     const find = el("button", null, "Znajdź");
-    find.title = dev.type === "light_group" ? "Wszystkie światła grupy dadzą o sobie znać przez 15 s" : "Urządzenie da o sobie znać przez 15 s (żarówka pulsuje, gniazdko miga diodą)";
+    find.title = isGroup(dev) ? "Wszystkie światła grupy dadzą o sobie znać przez 15 s" : "Urządzenie da o sobie znać przez 15 s (żarówka pulsuje, gniazdko miga diodą)";
     find.onclick = () => act(() => post(`/api/devices/${encodeURIComponent(dev.name)}/identify`, {}));
     buttons.push(find);
   }
@@ -545,18 +552,18 @@ function sliders(dev) {
     const lab = el("label", null, label); lab.htmlFor = id; lab.style.margin = "0"; lab.style.fontWeight = "400";
     box.append(lab, input, out);
   }
-  if (dev.type === "light_rgb") box.append(colorPicker(dev));
+  if (dev.type === "light_rgb" || dev.type === "light_rgb_group") box.append(colorPicker(dev));
   return box;
 }
 
 function summary(dev) {
   // Krótki opis w wierszu: najważniejsza wartość dla danego rodzaju urządzenia.
   const parts = [];
-  if (dev.type === "light_group") parts.push(`świateł: ${dev.members.length}, dostępnych: ${dev.members_available}`);
-  if ((dev.type === "light_cct" || dev.type === "light_rgb" || dev.type === "light_group") && dev.state === "on" && dev.brightness != null) parts.push(`jasność ${dev.brightness}%`);
+  if (isGroup(dev)) parts.push(`świateł: ${dev.members.length}, dostępnych: ${dev.members_available}`);
+  if ((dev.type === "light_cct" || dev.type === "light_rgb" || isGroup(dev)) && dev.state === "on" && dev.brightness != null) parts.push(`jasność ${dev.brightness}%`);
   if (dev.meter) parts.push(meterText(dev.meter));
   if (dev.sensor) parts.push(sensorText(dev));
-  if (dev.type !== "light_group" && dev.type !== "meter") {
+  if (!isGroup(dev) && dev.type !== "meter") {
     // Model, a gdy jest już w tytule (urządzenie bez własnej nazwy) - numer węzła, żeby dało się je odróżnić.
     const title = dev.caption || dev.product || dev.name;
     parts.push(dev.product && dev.product !== title ? dev.product : `węzeł ${dev.node_id}`);
@@ -567,21 +574,21 @@ function summary(dev) {
 
 function searchText(dev) {
   return [dev.caption, dev.name, dev.product, dev.vendor, TYPE_LABEL[dev.type], STATE_LABEL[dev.state],
-    dev.type === "light_group" ? "" : `węzeł ${dev.node_id}`, dev.supla_channel >= 0 ? `kanał ${dev.supla_channel}` : "bez kanału",
+    isGroup(dev) ? "" : `węzeł ${dev.node_id}`, dev.supla_channel >= 0 ? `kanał ${dev.supla_channel}` : "bez kanału",
     ...(dev.groups || [])].filter(Boolean).join(" ").toLowerCase();
 }
 
 function detailsBox(dev, options) {
   const box = el("div", "details");
   const left = el("div", "controls");
-  if (dev.type === "light_cct" || dev.type === "light_rgb" || dev.type === "light_group") left.append(sliders(dev));
+  if (dev.type === "light_cct" || dev.type === "light_rgb" || isGroup(dev)) left.append(sliders(dev));
   const facts = [["Rodzaj", TYPE_LABEL[dev.type]], ["Nazwa techniczna", dev.name]];
-  if (dev.type !== "light_group") {
+  if (!isGroup(dev)) {
     facts.push(["Urządzenie", [dev.vendor, dev.product].filter(Boolean).join(" · ") || "?"]);
     if (dev.firmware) facts.push(["Firmware", dev.firmware]);
     facts.push(["Matter", `węzeł ${dev.node_id}, endpoint ${dev.endpoint}`]);
   }
-  facts.push(["Kanał SUPLA", dev.supla_channel >= 0 ? String(dev.supla_channel) : (dev.type === "light_group" ? "powstanie po dodaniu pierwszego światła" : "brak (bez osobnego kanału)")]);
+  facts.push(["Kanał SUPLA", dev.supla_channel >= 0 ? String(dev.supla_channel) : (isGroup(dev) ? "powstanie po dodaniu pierwszego światła" : "brak (bez osobnego kanału)")]);
   if (dev.groups && dev.groups.length) facts.push(["Grupy", dev.groups.join(", ")]);
   facts.push(["Ostatnio widziane", dev.state === "unavailable" ? timeAgo(dev.last_seen) : "teraz dostępne"]);
   if (dev.startup) {
@@ -623,12 +630,12 @@ function detailsBox(dev, options) {
     };
     tools.append(set);
   }
-  if (dev.supla_channel < 0 && dev.type !== "light_group" && options.canAdd) {
+  if (dev.supla_channel < 0 && !isGroup(dev) && options.canAdd) {
     const add = el("button", null, "Dodaj osobny kanał SUPLA");
     add.onclick = () => { if (confirm(ADD_CHANNEL_CONFIRM)) act(() => post("/api/devices", { node_id: dev.node_id, endpoint: dev.endpoint, type: dev.type })); };
     tools.append(add);
   }
-  if (dev.type !== "light_group") tools.append(diagLink(dev.node_id));
+  if (!isGroup(dev)) tools.append(diagLink(dev.node_id));
   left.append(tools);
   box.append(left, list);
   return box;
@@ -683,10 +690,10 @@ function renderDevices(state) {
   const items = [];
   for (const dev of state.devices.filter((d) => !d.caption_linked)) {
     let children = [];
-    if (dev.type === "light_group") {
+    if (isGroup(dev)) {
       children = dev.members.map((m) => m.device
         ? { dev: m.device, key: `${dev.name}/${m.device.name}`, canAdd: true }
-        : { dev: { name: `${dev.name}-${m.node_id}-${m.endpoint}`, caption: "Nieznane urządzenie", type: "light_cct", node_id: m.node_id, endpoint: m.endpoint, supla_channel: -1, state: "unavailable", last_seen: null }, key: `${dev.name}/${m.node_id}/${m.endpoint}`, placeholder: true });
+        : { dev: { name: `${dev.name}-${m.node_id}-${m.endpoint}`, caption: "Nieznane urządzenie", type: GROUP_KINDS[dev.type], node_id: m.node_id, endpoint: m.endpoint, supla_channel: -1, state: "unavailable", last_seen: null }, key: `${dev.name}/${m.node_id}/${m.endpoint}`, placeholder: true });
     } else {
       children = meters.filter((c) => c.node_id === dev.node_id).map((c) => ({ dev: c, key: c.name }));
     }
@@ -764,7 +771,7 @@ function showTab(name, remember) {
 }
 
 function renderCounts(state) {
-  const groups = state.devices.filter((d) => d.type === "light_group").length;
+  const groups = state.devices.filter(isGroup).length;
   const waiting = state.candidates.filter((c) => !c.in_group).length;
   $("count-kanaly").textContent = state.devices.length - groups + (waiting ? ` +${waiting}` : "");
   $("count-kanaly").className = "count" + (waiting ? " alert" : "");
@@ -777,7 +784,7 @@ let groupsDirty = false;
 
 function renderGroups(state) {
   // Skład grup i lista wyboru przy parowaniu; bez przebudowy co 2 s, żeby nie gubić zaznaczeń.
-  const groups = state.devices.filter((d) => d.type === "light_group");
+  const groups = state.devices.filter(isGroup);
   const lights = state.lights || [];
   const key = JSON.stringify([groups.map((g) => [g.name, g.caption, g.members]), lights]);
   if (key === shownGroups || groupsDirty) return;
@@ -794,10 +801,10 @@ function renderGroups(state) {
   if (!groups.length) { box.replaceChildren(el("p", "empty", "Brak grup.")); return; }
   box.replaceChildren(...groups.map((group) => {
     const details = el("details");
-    details.append(el("summary", null, `${group.caption || group.name} · ${group.supla_channel < 0 ? "jeszcze bez kanału" : "kanał " + group.supla_channel} · świateł: ${group.members.length}`));
+    details.append(el("summary", null, `${group.caption || group.name} · ${group.type === "light_rgb_group" ? "kolorowe · " : ""}${group.supla_channel < 0 ? "jeszcze bez kanału" : "kanał " + group.supla_channel} · świateł: ${group.members.length}`));
     const inner = el("div");
     const member = (l) => group.members.some((m) => m.node_id === l.node_id && m.endpoint === l.endpoint);
-    const boxes = lights.map((l) => {
+    const boxes = lights.filter((l) => l.kind === group.type).map((l) => {
       const label = el("label", "check");
       const input = el("input"); input.type = "checkbox"; input.checked = member(l);
       input.dataset.node = l.node_id; input.dataset.endpoint = l.endpoint;
@@ -806,7 +813,7 @@ function renderGroups(state) {
       label.append(input, el("span", null, `${l.label} · węzeł ${l.node_id} · ${where}` + (l.available ? "" : " · niedostępne")));
       return label;
     });
-    if (!boxes.length) inner.append(el("p", "empty", "Nie ma jeszcze sparowanych świateł z regulacją bieli."));
+    if (!boxes.length) inner.append(el("p", "empty", group.type === "light_rgb_group" ? "Nie ma jeszcze sparowanych świateł kolorowych." : "Nie ma jeszcze sparowanych świateł z regulacją bieli (bez koloru)."));
     const save = el("button", null, "Zapisz skład");
     const status = el("div");
     save.onclick = () => act(async () => {
@@ -976,8 +983,8 @@ $("backup-now").onclick = () => {
 $("device-filter").addEventListener("input", () => refresh());
 $("group-form").addEventListener("submit", (e) => {
   e.preventDefault();
-  const caption = $("group-caption").value;
-  act(async () => { await post("/api/groups", { caption, members: [] }); $("group-caption").value = ""; groupsDirty = false; }, $("group-status"));
+  const caption = $("group-caption").value, kind = $("group-kind").value;
+  act(async () => { await post("/api/groups", { caption, members: [], kind }); $("group-caption").value = ""; groupsDirty = false; }, $("group-status"));
 });
 $("dataset-form").addEventListener("submit", (e) => {
   e.preventDefault();

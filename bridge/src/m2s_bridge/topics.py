@@ -5,11 +5,11 @@
 
 from __future__ import annotations
 
-from .config import GROUP_TYPE, Device
+from .config import GROUP_TYPES, Device
 
 
 def _base(prefix: str, dev: Device) -> str:
-    if dev.type == GROUP_TYPE:
+    if dev.type in GROUP_TYPES:
         # Grupa nie ma węzła; nazwa jest stała, więc tematy nie zmieniają się ze składem grupy.
         return f"{prefix}/group/{dev.name}"
     return f"{prefix}/{dev.node_id}/{dev.endpoint}/{dev.type}"

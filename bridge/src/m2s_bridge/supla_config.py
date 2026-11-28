@@ -30,12 +30,13 @@ SUPLA_TYPES = {
     "light_rgb": "MatterRgbLight",
     "meter": "MatterMeter",
     "light_group": "MatterLight",
+    "light_rgb_group": "MatterRgbLight",
     "leak": "BinaryParsed",
     "climate": "ThermHygroMeterParsed",
     "co2": "GeneralPurposeMeasurementParsed",
     "pm25": "GeneralPurposeMeasurementParsed",
 }
-LIGHT_TYPES = ("light_cct", "light_rgb", "light_group")
+LIGHT_TYPES = ("light_cct", "light_rgb", "light_group", "light_rgb_group")
 
 # Nazwy typów z YAML oznaczające ten sam typ kanału po stronie serwera SUPLA — przejście
 # między nimi nie narusza trwałości kanałów (MatterMeter to jednofazowy ElectricityMeterParsed).

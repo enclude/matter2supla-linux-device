@@ -14,7 +14,8 @@ Gniazdko (`onoff`):
           T: biel 0–100, R G B: kolor 0–255 (ostatni ustawiony, także gdy świeci biel)
   komenda `M B T R G B`   — M: 0 = zgaś, 1 = biel (B, T), 2 = kolor (B, R, G, B); pola
           nieużywane w danym trybie są pomijane
-Grupa świateł (`light_group`): tematy `<prefix>/group/<nazwa>/state|set`, format jak dla światła.
+Grupa świateł (`light_group`, `light_rgb_group`): tematy `<prefix>/group/<nazwa>/state|set`, format jak dla światła
+  danego rodzaju (`light_cct` albo `light_rgb`).
   Stan zbiorczy: włączona, gdy świeci którekolwiek światło; jasność i biel z pierwszego
   świecącego (a gdy wszystkie zgaszone - z pierwszego dostępnego); niedostępna dopiero wtedy,
   gdy nie odpowiada żadne. Komenda trafia do wszystkich dostępnych świateł grupy naraz.
@@ -38,7 +39,7 @@ import time
 from typing import Any, Awaitable, Callable, Protocol
 
 from . import light, meter, sensor
-from .config import GROUP_TYPE, NO_CHANNEL, Config, Device
+from .config import GROUP_MEMBER_TYPE, GROUP_TYPES, NO_CHANNEL, RGB_GROUP_TYPE, Config, Device
 from .matter_client import MatterConnectionError, MatterError
 from .topics import set_topic, state_topic
 
@@ -52,8 +53,9 @@ STARTUP_VALUES: dict[str, int | None] = {"previous": None, "off": 0, "on": 1, "t
 STARTUP_NAMES = {0: "off", 1: "on", 2: "toggle"}
 IDENTIFY_CLUSTER = 0x0003
 IDENTIFY_SEC = 15  # tyle urządzenie daje o sobie znać (żarówka pulsuje, gniazdko miga diodą)
-LIGHT_TYPES = ("light_cct", "light_rgb", GROUP_TYPE)
+LIGHT_TYPES = ("light_cct", "light_rgb", *GROUP_TYPES)
 RGB_TYPE = "light_rgb"
+RGB_KINDS = (RGB_TYPE, RGB_GROUP_TYPE)  # światło kolorowe i grupa takich świateł
 
 _COMMANDS = {
     "ON": "On",
@@ -104,7 +106,7 @@ class BridgeCore:
         }
         self._by_node: dict[int, list[Device]] = {}
         for dev in self._devices:
-            if dev.type == GROUP_TYPE:
+            if dev.type in GROUP_TYPES:
                 # Stan grupy zależy od każdego z jej świateł.
                 for node_id in dict.fromkeys(node_id for node_id, _ in dev.members):
                     self._by_node.setdefault(node_id, []).append(dev)
@@ -113,13 +115,13 @@ class BridgeCore:
 
     @staticmethod
     def members_of(group: Device) -> list[Device]:
-        """Światła grupy jako urządzenia `light_cct` (bez kanału, tylko do odczytu i komend)."""
+        """Światła grupy jako urządzenia swojego rodzaju (bez kanału, tylko do odczytu i komend)."""
         return [
             Device(
                 name=f"{group.name}:{node_id}/{endpoint}",
                 node_id=node_id,
                 endpoint=endpoint,
-                type="light_cct",
+                type=GROUP_MEMBER_TYPE[group.type],
                 supla_channel=NO_CHANNEL,
             )
             for node_id, endpoint in group.members
@@ -152,7 +154,7 @@ class BridgeCore:
         return node["attributes"]
 
     def state_of(self, dev: Device) -> int:
-        if dev.type == GROUP_TYPE:
+        if dev.type in GROUP_TYPES:
             current = self.light_state(dev)
             return STATE_INVALID if current is None else current["state"]
         attributes = self._attributes(dev)
@@ -165,17 +167,21 @@ class BridgeCore:
 
     def light_state(self, dev: Device) -> dict[str, int] | None:
         """Stan światła w skali SUPLA albo None, gdy niedostępne lub niepełne dane."""
-        if dev.type == GROUP_TYPE:
+        if dev.type in GROUP_TYPES:
             states = [s for member in self.members_of(dev) if (s := self.light_state(member)) is not None]
             if not states:
                 return None
             lit = [s for s in states if s["state"] == 1]
             reference = (lit or states)[0]
-            return {
+            result = {
                 "state": 1 if lit else 0,
                 "brightness": reference["brightness"],
                 "temperature": reference["temperature"],
             }
+            if dev.type == RGB_GROUP_TYPE:
+                result["mode"] = reference["mode"]
+                result["rgb"] = reference["rgb"]
+            return result
         attributes = self._attributes(dev)
         state = self.state_of(dev)
         if attributes is None or state == STATE_INVALID:
@@ -230,7 +236,7 @@ class BridgeCore:
             return "" if current is None else json.dumps(current)
         if dev.type in LIGHT_TYPES:
             current = self.light_state(dev)
-            if dev.type == RGB_TYPE:
+            if dev.type in RGB_KINDS:
                 if current is None:
                     return "-1 1 0 0 255 255 255"
                 red, green, blue = current["rgb"]  # type: ignore[misc]
@@ -284,7 +290,7 @@ class BridgeCore:
         for node in nodes or []:
             self._store_node(node)
         for dev in self._devices:
-            if dev.type == GROUP_TYPE:
+            if dev.type in GROUP_TYPES:
                 for node_id, _ in dev.members:
                     if node_id not in self._nodes:
                         log.warning("%s: węzeł %d z grupy nie istnieje w matter-server", dev.name, node_id)
@@ -365,7 +371,7 @@ class BridgeCore:
 
     async def send_command(self, dev: Device, command: str) -> bool:
         """Wysyła On/Off/Toggle do urządzenia; False, gdy się nie udało."""
-        if dev.type == GROUP_TYPE:
+        if dev.type in GROUP_TYPES:
             if command == "Toggle":
                 command = "Off" if self.state_of(dev) == 1 else "On"
             return await self._fan_out(dev, lambda member: self._invoke(member, ONOFF_CLUSTER, command))
@@ -375,7 +381,7 @@ class BridgeCore:
         """Zachowanie po powrocie zasilania: previous / on / off / toggle; None - brak danych albo nieobsługiwane.
 
         Dla grupy: wspólna wartość członków albo "mixed", gdy się różnią."""
-        if dev.type == GROUP_TYPE:
+        if dev.type in GROUP_TYPES:
             values = {v for m in self.members_of(dev) if (v := self.startup_of(m)) is not None}
             if not values:
                 return None
@@ -387,7 +393,7 @@ class BridgeCore:
         return STARTUP_NAMES.get(attributes[path], "previous") if attributes[path] is not None else "previous"
 
     def can_set_startup(self, dev: Device) -> bool:
-        if dev.type == GROUP_TYPE:
+        if dev.type in GROUP_TYPES:
             return any(self.can_set_startup(m) for m in self.members_of(dev))
         return dev.type != "meter" and dev.type not in sensor.SENSOR_TYPES and self.startup_of(dev) is not None
 
@@ -395,7 +401,7 @@ class BridgeCore:
         """Ustawia zachowanie po powrocie zasilania w samym urządzeniu (atrybut StartUpOnOff)."""
         if mode not in STARTUP_VALUES:
             raise ValueError(f"nieznany tryb: {mode}")
-        if dev.type == GROUP_TYPE:
+        if dev.type in GROUP_TYPES:
             members = [m for m in self.members_of(dev) if self.can_set_startup(m)]
             results = await asyncio.gather(*(self.set_startup(m, mode) for m in members))
             return bool(results) and all(results)
@@ -426,7 +432,7 @@ class BridgeCore:
         """Czy urządzenie (albo któreś światło grupy) ma klaster Identify; licznik i czujniki nie przyjmują komend."""
         if not self.accepts_commands(dev):
             return False
-        if dev.type == GROUP_TYPE:
+        if dev.type in GROUP_TYPES:
             return any(self.can_identify(member) for member in self.members_of(dev))
         attributes = self._attributes(dev) or {}
         prefix = f"{dev.endpoint}/{IDENTIFY_CLUSTER}/"
@@ -434,7 +440,7 @@ class BridgeCore:
 
     async def identify(self, dev: Device, seconds: int = IDENTIFY_SEC) -> bool:
         """Każe urządzeniu dać o sobie znać; dla grupy - wszystkim jej światłom naraz."""
-        if dev.type == GROUP_TYPE:
+        if dev.type in GROUP_TYPES:
             return await self._fan_out(dev, lambda member: self.identify(member, seconds))
         return await self._invoke(dev, IDENTIFY_CLUSTER, "Identify", {"identifyTime": seconds})
 
@@ -452,7 +458,7 @@ class BridgeCore:
 
     async def set_light(self, dev: Device, brightness: int | None, temperature: int | None) -> bool:
         """Ustawia jasność (0 = zgaś, 1–100) i/lub biel (0–100). Pomija to, co już jest ustawione."""
-        if dev.type == GROUP_TYPE:
+        if dev.type in GROUP_TYPES:
             # Każde światło porównuje polecenie z własnym stanem, więc grupa się wyrównuje.
             return await self._fan_out(dev, lambda member: self.set_light(member, brightness, temperature))
         current = self.light_state(dev)
@@ -505,6 +511,9 @@ class BridgeCore:
 
         Bez żadnego z nich zmienia się tylko jasność w bieżącym trybie. Pomija to, co już jest ustawione.
         """
+        if dev.type == RGB_GROUP_TYPE:
+            # Każde światło porównuje polecenie z własnym stanem, więc grupa się wyrównuje.
+            return await self._fan_out(dev, lambda member: self.set_light_rgb(member, brightness, temperature, rgb))
         current = self.light_state(dev)
         attributes = self._attributes(dev)
         if current is None or attributes is None:
@@ -568,7 +577,7 @@ class BridgeCore:
             text = payload.decode("utf-8", errors="replace")
         else:
             text = "" if payload is None else str(payload)
-        if dev.type == RGB_TYPE:
+        if dev.type in RGB_KINDS:
             try:
                 values = [int(part) for part in text.split()]
             except ValueError:

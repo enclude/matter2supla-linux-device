@@ -16,11 +16,15 @@ from .meter import MEASUREMENTS
 from .sensor import SENSOR_TYPES, slot_of
 
 # Typy urządzeń obsługiwane przez łącznik. Kolejne (jasność, czujniki) dojdą tutaj.
-DEVICE_TYPES = ("onoff", "light_cct", "light_rgb", "meter", "light_group", *SENSOR_TYPES)
+DEVICE_TYPES = ("onoff", "light_cct", "light_rgb", "meter", "light_group", "light_rgb_group", *SENSOR_TYPES)
 
 # Grupa świateł: jeden kanał SUPLA sterujący kilkoma światłami naraz. Nie ma własnego węzła
 # (node_id i endpoint są zerowe), a jej skład (`members`) wolno zmieniać bez wpływu na kanał.
 GROUP_TYPE = "light_group"
+RGB_GROUP_TYPE = "light_rgb_group"
+GROUP_TYPES = (GROUP_TYPE, RGB_GROUP_TYPE)
+# Grupa jest jednorodna: każdy rodzaj grupy ma swój rodzaj świateł i własny typ kanału SUPLA.
+GROUP_MEMBER_TYPE = {GROUP_TYPE: "light_cct", RGB_GROUP_TYPE: "light_rgb"}
 
 # Urządzenie sterowane tylko z panelu i przez MQTT, bez kanału SUPLA (nie trafia do pliku).
 NO_CHANNEL = -1
@@ -233,7 +237,7 @@ def parse_config(raw: Any) -> Config:
         where = f"devices[{index}]"
         if not isinstance(item, dict):
             raise ConfigError(f"{where}: oczekiwano mapy")
-        is_group = item.get("type") == GROUP_TYPE
+        is_group = item.get("type") in GROUP_TYPES
         # Grupa bez `supla_channel` jeszcze nie ma kanału: dostaje go z pierwszym światłem.
         required = ("name", "type") if is_group else (
             "name", "node_id", "endpoint", "type", "supla_channel"
@@ -251,7 +255,7 @@ def parse_config(raw: Any) -> Config:
             )
         caption = item.get("caption")
         if not is_group and item.get("members"):
-            raise ConfigError(f"{where}.members: pole dotyczy tylko typu `{GROUP_TYPE}`")
+            raise ConfigError(f"{where}.members: pole dotyczy tylko typów grup (`{GROUP_TYPE}`, `{RGB_GROUP_TYPE}`)")
         devices.append(
             Device(
                 name=name,
@@ -304,12 +308,12 @@ def config_to_raw(config: Config) -> dict[str, Any]:
         mqtt["password"] = config.mqtt.password
     devices = []
     for dev in config.devices:
-        if dev.supla_channel == NO_CHANNEL and dev.type != GROUP_TYPE:
+        if dev.supla_channel == NO_CHANNEL and dev.type not in GROUP_TYPES:
             continue
         item: dict[str, Any] = {"name": dev.name}
         if dev.caption:
             item["caption"] = dev.caption
-        if dev.type == GROUP_TYPE:
+        if dev.type in GROUP_TYPES:
             item["type"] = dev.type
             if dev.supla_channel != NO_CHANNEL:
                 item["supla_channel"] = dev.supla_channel
@@ -374,7 +378,7 @@ def _check_unique(devices: list[Device]) -> None:
                 f"({seen_channels[dev.supla_channel]} i {dev.name})"
             )
         seen_channels[dev.supla_channel] = dev.name
-        if dev.type == GROUP_TYPE:
+        if dev.type in GROUP_TYPES:
             continue  # grupa nie ma własnego węzła; jej światła mogą mieć też osobne kanały
         # Licznik i czujniki mogą dzielić endpoint z innymi urządzeniami — to osobne kanały z własnymi tematami.
         target = (dev.node_id, dev.endpoint, slot_of(dev.type))
