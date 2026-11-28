@@ -55,6 +55,7 @@ _SLUG = re.compile(r"[^a-z0-9]+")
 
 
 METER_SUFFIX = " — licznik"
+SENSOR_CAPTION_SUFFIX = {"leak": "", "climate": " — temperatura i wilgotność", "co2": " — CO2", "pm25": " — PM2.5"}
 
 
 def link_meter_captions(devices: list[Device]) -> list[Device]:
@@ -74,7 +75,12 @@ class ManagerError(Exception):
 
 
 def onoff_endpoints(attributes: dict[str, Any]) -> list[int]:
-    return sorted(int(m.group(1)) for path in attributes if (m := _ONOFF_PATH.match(path)))
+    # Endpoint czujnika z klastrem OnOff (np. dioda ALPSTUGA) nie jest gniazdkiem ani światłem.
+    return sorted(
+        int(m.group(1))
+        for path in attributes
+        if (m := _ONOFF_PATH.match(path)) and not sensor.is_sensor_endpoint(attributes, int(m.group(1)))
+    )
 
 
 def is_dimmable(attributes: dict[str, Any], endpoint: int) -> bool:
@@ -276,6 +282,8 @@ class Manager:
         label = node["attributes"].get("0/40/5")
         local = self._local_name(candidate["node_id"], candidate["endpoint"]) if kind != "meter" else None
         caption = str(local or label or candidate["product"] or "")
+        if kind in sensor.SENSOR_TYPES and len({k for k, _ in sensor.slots(node["attributes"])}) > 1:
+            caption = f"{caption}{SENSOR_CAPTION_SUFFIX[kind]}"  # kilka czujników jednego urządzenia: odróżniamy je nazwą
         measurements: tuple[str, ...] = ()
         if kind == "meter":
             caption = f"{caption} — licznik" if caption else "Licznik energii"

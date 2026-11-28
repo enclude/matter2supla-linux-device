@@ -11,6 +11,11 @@ Typy urządzeń w devices.yaml i ich kanały SUPLA:
            RelativeHumidityMeasurement 0x0405, mogą być na osobnych
            endpointach - TIMMERFLOTTE: temperatura na 1, wilgotność na 2)
            stan `{"temperature": °C, "humidity": %}`
+  co2      stężenie CO2 (0x040D, ALPSTUGA)                          GeneralPurposeMeasurementParsed
+           stan `{"value": ppm}`
+  pm25     pył PM2.5 (0x042A, ALPSTUGA)                             GeneralPurposeMeasurementParsed
+           stan `{"value": µg/m³}`
+Jednostka stężenia (atrybut MeasurementUnit) jest przeliczana na ppm i µg/m³; inna - niedostępne.
 
 Stan to JSON z dokładnie tymi kluczami, które są zapisane dla urządzenia, albo pusty komunikat,
 gdy urządzenie jest niedostępne lub nie podaje któregoś z pomiarów (tak samo jak dla licznika:
@@ -26,11 +31,19 @@ from typing import Any
 BOOLEAN_STATE_CLUSTER = 0x0045
 TEMPERATURE_CLUSTER = 0x0402  # MeasuredValue: 0,01 °C, null = brak pomiaru
 HUMIDITY_CLUSTER = 0x0405  # MeasuredValue: 0,01 %
+CO2_CLUSTER = 0x040D  # CarbonDioxideConcentrationMeasurement
+PM25_CLUSTER = 0x042A  # Pm25ConcentrationMeasurement
+UNIT_ATTRIBUTE = 0x0008  # MeasurementUnit: 0 ppm, 1 ppb, 2 ppt, 3 mg/m3, 4 ug/m3, 5 ng/m3
+AIR_QUALITY_DEVICE_TYPE = 0x002C
 POWER_SOURCE_CLUSTER = 0x002F
 BATTERY_ATTRIBUTE = 0x000C  # BatPercentRemaining: 0-200, jednostka 0,5 %
 LEAK_DEVICE_TYPE = 0x0043  # Water Leak Detector
 
-SENSOR_TYPES = ("leak", "climate")
+SENSOR_TYPES = ("leak", "climate", "co2", "pm25")
+
+# jednostka (MeasurementUnit) -> mnożnik do ppm (CO2) albo ug/m3 (PM2.5); brak atrybutu = jednostka docelowa
+_TO_PPM = {0: 1.0, 1: 1e-3, 2: 1e-6}
+_TO_UGM3 = {3: 1000.0, 4: 1.0, 5: 1e-3}
 BATTERY = "battery"
 
 
@@ -70,6 +83,10 @@ def slots(attributes: dict[str, Any]) -> list[tuple[str, int]]:
     temperature = _first_endpoint(attributes, TEMPERATURE_CLUSTER)
     if temperature is not None and _first_endpoint(attributes, HUMIDITY_CLUSTER) is not None:
         found.append(("climate", temperature))
+    for kind, cluster in (("co2", CO2_CLUSTER), ("pm25", PM25_CLUSTER)):
+        endpoint = _first_endpoint(attributes, cluster)
+        if endpoint is not None:
+            found.append((kind, endpoint))
     return found
 
 
@@ -88,7 +105,10 @@ def humidity_endpoint(attributes: dict[str, Any], endpoint: int) -> int | None:
 
 
 def is_sensor_endpoint(attributes: dict[str, Any], endpoint: int) -> bool:
-    return any(e == endpoint for _, e in slots(attributes))
+    """Endpoint czujnika - także wtedy, gdy ma klaster OnOff (np. dioda ALPSTUGA), więc nie jest gniazdkiem."""
+    return AIR_QUALITY_DEVICE_TYPE in _device_types(attributes, endpoint) or any(
+        e == endpoint for _, e in slots(attributes)
+    )
 
 
 def battery_percent(attributes: dict[str, Any]) -> int | None:
@@ -116,6 +136,14 @@ def _main_values(attributes: dict[str, Any], dev_type: str, endpoint: int) -> di
         if temperature is None or humidity is None or not -10000 <= temperature <= 20000 or not 0 <= humidity <= 10000:
             return None
         return {"temperature": round(temperature / 100, 2), "humidity": round(humidity / 100, 2)}
+    if dev_type in ("co2", "pm25"):
+        cluster, factors = (CO2_CLUSTER, _TO_PPM) if dev_type == "co2" else (PM25_CLUSTER, _TO_UGM3)
+        raw = _number(attributes.get(f"{endpoint}/{cluster}/0"))
+        unit = attributes.get(f"{endpoint}/{cluster}/{UNIT_ATTRIBUTE}", 0 if dev_type == "co2" else 4)
+        factor = factors.get(unit) if isinstance(unit, int) and not isinstance(unit, bool) else None
+        if raw is None or factor is None or raw < 0:
+            return None
+        return {"value": round(raw * factor, 1)}
     return None
 
 

@@ -343,6 +343,8 @@ function sensorText(dev) {
   const parts = [];
   if (dev.type === "leak") parts.push(v.state ? "WYKRYTO WODĘ" : "sucho");
   if (dev.type === "climate") parts.push(`${num(v.temperature, 1)} °C`, `wilgotność ${num(v.humidity, 0)}%`);
+  if (dev.type === "co2") parts.push(`CO2 ${num(v.value, 0)} ppm`);
+  if (dev.type === "pm25") parts.push(`PM2,5 ${num(v.value, 1)} µg/m³`);
   if (v.battery != null) parts.push(`bateria ${v.battery}%`);
   return parts.join(" · ");
 }
@@ -372,7 +374,7 @@ function diagLink(nodeId) {
 
 const sliderHold = {};  // nazwa urządzenia -> czas ostatniego ruchu suwakiem (nie nadpisujemy w trakcie)
 const openRows = new Set();  // rozwinięte wiersze - lista jest przebudowywana co 2 s
-const TYPE_LABEL = { onoff: "gniazdko / przekaźnik", light_cct: "światło z regulacją bieli", light_rgb: "światło kolorowe (RGB + biel)", meter: "licznik energii", leak: "czujnik zalania", climate: "czujnik temperatury i wilgotności", light_group: "grupa świateł" };
+const TYPE_LABEL = { onoff: "gniazdko / przekaźnik", light_cct: "światło z regulacją bieli", light_rgb: "światło kolorowe (RGB + biel)", meter: "licznik energii", leak: "czujnik zalania", climate: "czujnik temperatury i wilgotności", co2: "czujnik CO2", pm25: "czujnik pyłu PM2.5", light_group: "grupa świateł" };
 const RENAME_PROMPT = "Nazwa w panelu (lokalna, nie jest wysyłana do SUPLA Cloud). Kanał dostaje ją w SUPLA tylko przy pierwszej rejestracji, np. po zmianie konta lub serwera - istniejącej nazwy w Cloud nie zmienia:";
 const SUPLA_CLOUD = "https://cloud.supla.org";  // przekierowuje na serwer konta
 let lastState = { devices: [] };

@@ -150,6 +150,7 @@ Grupa z jednym światłem też ma sens: po wymianie żarówki podmienia się sk�
 
 Sekcja pojawia się, gdy sparowane są urządzenia, które nie mają kanału SUPLA:
 
+- kilka czujników na jednym endpoincie (ALPSTUGA: temperatura i wilgotność, CO2, PM2.5): przy ręcznym dodawaniu przycisk dodaje ten kanał, na którym go naciśnięto, ale zdejmuje też blokadę „bez kanału” z całego endpointu, więc pozostałe czujniki dopiszą się wtedy same;
 - typy jeszcze nieobsługiwane (np. czujniki ruchu i kontaktu) - można je sparować i pobrać diagnostykę, na podstawie której dopisuje się obsługę;
 - światła z regulacją bieli przy `lights_as_channels: false` - bez kanału SUPLA, ale z przyciskami włącz/wyłącz oraz suwakami jasności i bieli. Domyślnie takie światło dostaje kanał „ściemniacz CCT” i te same suwaki są w sekcji kanałów. Światło kolorowe (KAJPLATS CWS) dostaje kanał „ściemniacz CCT + RGB”, a w szczegółach ma dodatkowo wybór koloru; wybór koloru przełącza żarówkę na tryb koloru, suwak bieli z powrotem na biel. Światła kolorowe nie należą do grup. Żarówka kolorowa sparowana przed tą funkcją jest rozpoznawana jako światło z regulacją bieli bez kanału; po aktualizacji łącznika zmienia rodzaj na „światło kolorowe” i kanał można jej dodać przyciskiem „Dodaj kanał”.
 

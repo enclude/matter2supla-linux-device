@@ -65,6 +65,7 @@ Co obsługuje łącznik:
 | Licznik energii gniazdka (napięcie, prąd, moc, energia) - kanał jednofazowy | działa na sprzęcie (GRILLPLATS) |
 | Czujnik zalania (KLIPPBOK) jako kanał SUPLA `BinaryParsed`, z poziomem baterii | napisane, testy na zrzucie prawdziwego czujnika; w SUPLA niesprawdzone na sprzęcie |
 | Czujnik temperatury i wilgotności (TIMMERFLOTTE) jako kanał SUPLA `ThermHygroMeterParsed`, z poziomem baterii | napisane, testy na zrzucie prawdziwego czujnika; w SUPLA niesprawdzone na sprzęcie |
+| Monitor jakości powietrza (ALPSTUGA): trzy kanały - temperatura i wilgotność, CO2, PM2.5 | napisane, testy na zrzucie prawdziwego urządzenia; w SUPLA niesprawdzone na sprzęcie; bez indeksu jakości powietrza |
 | Inne czujniki i typy urządzeń | nieobsługiwane - można sparować i pobrać zrzut diagnostyczny |
 
 Jeszcze niesprawdzone na sprzęcie: instalacja `host/install.sh` na czystym systemie, odtworzenie kopii zapasowej na drugim urządzeniu, płytki ESP32-C6 i ESP32-H2 jako dongle.

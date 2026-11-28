@@ -32,6 +32,8 @@ SUPLA_TYPES = {
     "light_group": "MatterLight",
     "leak": "BinaryParsed",
     "climate": "ThermHygroMeterParsed",
+    "co2": "GeneralPurposeMeasurementParsed",
+    "pm25": "GeneralPurposeMeasurementParsed",
 }
 LIGHT_TYPES = ("light_cct", "light_rgb", "light_group")
 
@@ -104,6 +106,9 @@ def _meter_channel(config: Config, dev: Device) -> dict[str, Any]:
 SENSOR_PARAMETERS = {
     "leak": {"state": "state"},
     "climate": {"temperature": "temperature", "humidity": "humidity", "multiplier_temp": 1, "multiplier_humi": 1},
+    # Jednostka i dokładność to wartości domyślne dla nowego kanału (w SUPLA Cloud można je zmienić).
+    "co2": {"value": "value", "default_unit_after_value": "ppm", "default_value_precision": 0},
+    "pm25": {"value": "value", "default_unit_after_value": "µg/m³", "default_value_precision": 1},
 }
 
 
