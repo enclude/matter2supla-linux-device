@@ -15,6 +15,7 @@ Przegląd projektu, wymagania i stan prac: [../README.md](../README.md).
 
 - [Aktualizacja](aktualizacja.md) - wersje i tagi obrazów, powiadomienie w panelu, ręczna aktualizacja `host/update.sh`, cofanie.
 - [Rozwiązywanie problemów](rozwiazywanie-problemow.md) - objawy i rozwiązania z rzeczywistych uruchomień.
+- [Jak urządzenia wyglądają w SUPLA](widok-w-supla.md) - zrzuty z SUPLA Cloud i aplikacji mobilnej.
 - [Jak to działa](jak-to-dziala.md) - tematy MQTT, dostępność i offline, trwałość kanałów SUPLA, pliki, porty.
 - [Polecenia CLI łącznika](cli.md) - `m2s-bridge` i jego opcje.
 
@@ -24,14 +25,14 @@ Przegląd projektu, wymagania i stan prac: [../README.md](../README.md).
 
 ## Zrzuty ekranu panelu
 
-Wykonane na przykładowych danych skryptem [`img/make_screenshots.py`](img/make_screenshots.py); opis sekcji w [panel-www.md](panel-www.md).
+Zrzuty panelu wykonane na przykładowych danych skryptem [`img/make_screenshots.py`](img/make_screenshots.py); opis sekcji w [panel-www.md](panel-www.md).
 
 | Widok | Plik |
 | --- | --- |
 | Cały panel (komputer) | [img/panel.png](img/panel.png) |
 | Panel na telefonie (zakładka „Parowanie”) | [img/panel-telefon.png](img/panel-telefon.png) |
 | Logowanie | [img/panel-logowanie.png](img/panel-logowanie.png) |
-| Kanały SUPLA | [img/panel-kanaly.png](img/panel-kanaly.png) |
+| Kanały SUPLA (z żarówką kolorową i selektorem koloru, czujnikami) | [img/panel-kanaly.png](img/panel-kanaly.png) |
 | Grupy świateł | [img/panel-grupy.png](img/panel-grupy.png) |
 | Logi | [img/panel-logi.png](img/panel-logi.png) |
 | Urządzenia Matter bez kanału | [img/panel-bez-kanalu.png](img/panel-bez-kanalu.png) |

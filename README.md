@@ -40,6 +40,8 @@ Skrót dla Raspberry Pi; wersja krok po kroku, z wyjaśnieniami: [docs/instalacj
 
    ![Panel WWW - kanały SUPLA (przykładowe dane)](docs/img/panel-kanaly.png)
 
+   Jak te urządzenia wyglądają w SUPLA (Cloud i aplikacja mobilna): [docs/widok-w-supla.md](docs/widok-w-supla.md).
+
 4. **Kopia zapasowa** powstaje codziennie o 03:30; pobierz jedną od razu po pierwszym parowaniu i trzymaj poza urządzeniem: [docs/kopie-zapasowe.md](docs/kopie-zapasowe.md).
 
 5. **Aktualizacja** - panel informuje o nowym wydaniu; aktualizuje się ręcznie: `sudo ./host/update.sh` ([docs/aktualizacja.md](docs/aktualizacja.md)).
@@ -60,12 +62,12 @@ Co obsługuje łącznik:
 | Panel WWW: konto SUPLA, parowanie kodem i zdjęciem QR, kanały ze szczegółami i identyfikacją urządzenia („Znajdź”), lokalne nazwy, odnośniki do SUPLA Cloud, logi, diagnostyka, kopie | działa na sprzęcie |
 | Wersjonowane wydania i ręczna aktualizacja `host/update.sh` z kopią i wycofaniem | działa na sprzęcie; wycofanie sprawdzone tylko na atrapach |
 | Światła z regulacją bieli (KAJPLATS) jako kanał SUPLA „ściemniacz CCT”: jasność i temperatura bieli | działa na sprzęcie; wymaga protokołu SUPLA 28 na serwerze |
-| Światła kolorowe (KAJPLATS CWS) jako kanał SUPLA „ściemniacz CCT + RGB”: jasność, biel i kolor | napisane, testy jednostkowe na zrzucie prawdziwej żarówki, rozszerzenie kompiluje się w obrazie; sterowanie z aplikacji SUPLA i z panelu niesprawdzone na sprzęcie |
+| Światła kolorowe (KAJPLATS CWS) jako kanał SUPLA „ściemniacz CCT + RGB”: jasność, biel i kolor | kanał rejestruje się w SUPLA i działa jako „ściemniacz CCT i RGB”, kolory z panelu docierają do żarówki, stan wraca do Cloud ([zrzuty](docs/widok-w-supla.md)); sterowanie kolorem z aplikacji SUPLA do potwierdzenia |
 | Grupy świateł: jeden kanał SUPLA dla kilku świateł tego samego rodzaju, obok zwykłych kanałów pojedynczych ([opis](docs/panel-www.md#grupy-świateł)) | działa na sprzęcie (cztery KAJPLATS GU10 w jednej grupie): parowanie prosto do grupy, stan w SUPLA, sterowanie z panelu; sterowanie grupą z aplikacji SUPLA do potwierdzenia |
 | Licznik energii gniazdka (napięcie, prąd, moc, energia) - kanał jednofazowy | działa na sprzęcie (GRILLPLATS) |
-| Czujnik zalania (KLIPPBOK) jako kanał SUPLA `BinaryParsed`, z poziomem baterii | napisane, testy na zrzucie prawdziwego czujnika; w SUPLA niesprawdzone na sprzęcie |
-| Czujnik temperatury i wilgotności (TIMMERFLOTTE) jako kanał SUPLA `ThermHygroMeterParsed`, z poziomem baterii | napisane, testy na zrzucie prawdziwego czujnika; w SUPLA niesprawdzone na sprzęcie |
-| Monitor jakości powietrza (ALPSTUGA): trzy kanały - temperatura i wilgotność, CO2, PM2.5 | napisane, testy na zrzucie prawdziwego urządzenia; w SUPLA niesprawdzone na sprzęcie; bez indeksu jakości powietrza |
+| Czujnik zalania (KLIPPBOK) jako kanał SUPLA `BinaryParsed`, z poziomem baterii | działa na sprzęcie: kanał i poziom baterii widoczne w SUPLA Cloud ([zrzut](docs/widok-w-supla.md)); zachowanie przy wykryciu wody niesprawdzone |
+| Czujnik temperatury i wilgotności (TIMMERFLOTTE) jako kanał SUPLA `ThermHygroMeterParsed`, z poziomem baterii | działa na sprzęcie: odczyty widoczne w aplikacji SUPLA, z baterią ([zrzut](docs/img/supla-app-kanaly.png)) |
+| Monitor jakości powietrza (ALPSTUGA): trzy kanały - temperatura i wilgotność, CO2, PM2.5 | działa na sprzęcie: temperatura, wilgotność, CO2 i PM2.5 widoczne w aplikacji SUPLA ([zrzut](docs/img/supla-app-kanaly.png)); bez indeksu jakości powietrza |
 | Inne czujniki i typy urządzeń | nieobsługiwane - można sparować i pobrać zrzut diagnostyczny |
 
 Jeszcze niesprawdzone na sprzęcie: instalacja `host/install.sh` na czystym systemie, odtworzenie kopii zapasowej na drugim urządzeniu, płytki ESP32-C6 i ESP32-H2 jako dongle.

@@ -52,6 +52,8 @@ NOW = time.time()
 COMMON = {"vendor": "IKEA of Sweden", "last_seen": NOW, "can_identify": True, "groups": []}
 PLUG = {**COMMON, "product": "GRILLPLATS Plug", "firmware": "1.4.6"}
 BULB_E27 = {**COMMON, "product": "KAJPLATS E27 WS globe 1521lm", "firmware": "1.1.0"}
+SENSOR = {**COMMON, "can_identify": False}
+ALPSTUGA = {**SENSOR, "product": "ALPSTUGA air quality monitor", "firmware": "1.0.15"}
 BULB_GU10 = {**COMMON, "product": "KAJPLATS GU10 WS 575lm", "firmware": "1.1.0"}
 
 STATE = {
@@ -77,7 +79,7 @@ STATE = {
         {"name": "grillplats_plug_2_meter", "caption": "Gniazdko - biurko - licznik", "node_id": "2",
          "endpoint": 2, "type": "meter", "supla_channel": 2, "cloud_id": 1203, "state": "measuring", "caption_linked": True,
          "meter": {"voltage": 236.8, "current": 0.104, "power": 14.6, "energy": 1.273},
-         **{**PLUG, "can_identify": False}},
+         "can_command": False, **{**PLUG, "can_identify": False}},
         {"name": "grupa_1", "caption": "Żyrandol - jadalnia", "node_id": "0", "endpoint": 0,
          "type": "light_group", "supla_channel": 3, "cloud_id": 1204, "state": "on", "caption_linked": False,
          "brightness": 80, "temperature": 45, "members_available": 2, "can_identify": True,
@@ -95,6 +97,27 @@ STATE = {
         {"name": "grillplats_plug_7", "caption": "Gniazdko - choinka", "node_id": "7", "endpoint": 1,
          "type": "onoff", "supla_channel": 4, "cloud_id": 1205, "state": "unavailable", "caption_linked": False,
          **{**PLUG, "last_seen": NOW - 3 * 3600, "can_identify": False}},
+        {"name": "kajplats_e27_cws_globe_1055lm_14", "caption": "Lampa - sypialnia", "node_id": "14", "endpoint": 1,
+         "type": "light_rgb", "supla_channel": 5, "cloud_id": 1206, "state": "on", "caption_linked": False,
+         "brightness": 70, "temperature": 40, "mode": "color", "color": "#ff5a1e", "startup": "previous",
+         **{**COMMON, "product": "KAJPLATS E27 CWS globe 1055lm", "firmware": "1.2.0"}},
+        {"name": "klippbok_water_leak_sensor_15_leak", "caption": "Czujnik zalania - łazienka", "node_id": "15",
+         "endpoint": 1, "type": "leak", "supla_channel": 6, "cloud_id": 1207, "state": "measuring",
+         "caption_linked": False, "sensor": {"state": 0, "battery": 100}, "can_command": False,
+         **{**SENSOR, "product": "KLIPPBOK water leak sensor", "firmware": "1.0.11"}},
+        {"name": "timmerflotte_temp_hmd_sensor_16_climate", "caption": "Temperatura - garaż", "node_id": "16",
+         "endpoint": 1, "type": "climate", "supla_channel": 7, "cloud_id": 1208, "state": "measuring",
+         "caption_linked": False, "sensor": {"temperature": 22.8, "humidity": 34.1, "battery": 100}, "can_command": False,
+         **{**SENSOR, "product": "TIMMERFLOTTE temp/hmd sensor", "firmware": "1.0.21"}},
+        {"name": "alpstuga_air_quality_monitor_17_climate", "caption": "Powietrze - salon - temperatura i wilgotność",
+         "node_id": "17", "endpoint": 1, "type": "climate", "supla_channel": 8, "cloud_id": 1209, "state": "measuring",
+         "caption_linked": False, "sensor": {"temperature": 21.7, "humidity": 32.0}, "can_command": False, **ALPSTUGA},
+        {"name": "alpstuga_air_quality_monitor_17_co2", "caption": "Powietrze - salon - CO2", "node_id": "17",
+         "endpoint": 1, "type": "co2", "supla_channel": 9, "cloud_id": 1210, "state": "measuring",
+         "caption_linked": False, "sensor": {"value": 391.0}, "can_command": False, **ALPSTUGA},
+        {"name": "alpstuga_air_quality_monitor_17_pm25", "caption": "Powietrze - salon - PM2.5", "node_id": "17",
+         "endpoint": 1, "type": "pm25", "supla_channel": 10, "cloud_id": 1211, "state": "measuring",
+         "caption_linked": False, "sensor": {"value": 5.0}, "can_command": False, **ALPSTUGA},
     ],
     "lights": [
         {"node_id": "3", "endpoint": 1, "label": "Lampa - salon", "available": True, "supla_channel": 1},
@@ -102,7 +125,7 @@ STATE = {
         {"node_id": "6", "endpoint": 1, "label": "KAJPLATS GU10 WS 575lm", "available": True, "supla_channel": None},
     ],
     "candidates": [
-        {"node_id": "4", "available": True, "vendor": "IKEA of Sweden", "product": "TIMMERFLOTTE temp/hmd sensor",
+        {"node_id": "4", "available": True, "vendor": "IKEA of Sweden", "product": "MYGGBETT door/window sensor",
          "endpoint": None, "supported": False, "reason": "typ urządzenia jeszcze nieobsługiwany", "control": None},
     ],
     "commission": {"running": False, "message": None, "error": None},
@@ -172,7 +195,7 @@ async def main() -> None:
             await page.locator(selector).screenshot(path=OUT / f"{name}.png")
 
         await page.click('.tabs button[data-tab="kanaly"]')
-        await page.locator("#devices .item >> nth=2").locator("button.more").click()  # szczegóły światła
+        await page.locator("#devices .item", has_text="Lampa - sypialnia").locator("button.more").click()  # szczegóły światła kolorowego
         await page.wait_for_timeout(400)
         await shot("kanaly", "#tab-kanaly section >> nth=0", "panel-kanaly")
         await shot("kanaly", "#candidates-section", "panel-bez-kanalu")
