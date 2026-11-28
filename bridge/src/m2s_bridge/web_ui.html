@@ -402,7 +402,7 @@ function timeAgo(seconds) {
 function commandButtons(dev) {
   // Przełącznik i „Znajdź” - zawsze widoczne w wierszu.
   const buttons = [];
-  if (dev.type === "meter" || dev.sensor !== undefined) return buttons;  // licznik i czujniki nie przyjmują komend
+  if (dev.can_command === false) return buttons;  // licznik i czujniki tylko raportują stan: bez przełącznika i „Znajdź”
   // Jeden przełącznik pokazuje stan i go zmienia; faktyczny stan wraca z urządzenia przy odświeżeniu.
   const toggle = el("label", "switch");
   const input = el("input");

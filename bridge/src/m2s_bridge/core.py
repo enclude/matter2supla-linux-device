@@ -417,8 +417,15 @@ class BridgeCore:
         """Czas ostatniego znaku życia węzła (sekundy epoki) albo None, gdy nie było go od startu łącznika."""
         return self._last_seen.get(node_id)
 
+    @staticmethod
+    def accepts_commands(dev: Device) -> bool:
+        """Licznik energii i czujniki tylko raportują stan - nie włączysz ich ani nie wskażesz „Znajdź”."""
+        return dev.type != "meter" and dev.type not in sensor.SENSOR_TYPES
+
     def can_identify(self, dev: Device) -> bool:
-        """Czy urządzenie (albo któreś światło grupy) ma klaster Identify."""
+        """Czy urządzenie (albo któreś światło grupy) ma klaster Identify; licznik i czujniki nie przyjmują komend."""
+        if not self.accepts_commands(dev):
+            return False
         if dev.type == GROUP_TYPE:
             return any(self.can_identify(member) for member in self.members_of(dev))
         attributes = self._attributes(dev) or {}

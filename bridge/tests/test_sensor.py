@@ -247,3 +247,13 @@ async def test_add_device_by_type_on_shared_endpoint(paths):  # noqa: F811
     assert manager.config.devices == ()  # endpoint celowo bez kanału
     dev = await manager.add_device(17, 1, "co2")
     assert dev.type == "co2"
+
+
+async def test_devices_without_commands_have_no_toggle_or_identify(paths):  # noqa: F811
+    manager = Manager(parse_config({}), paths[0], paths[1], "svr.example.org", "a@example.org")
+    manager.mqtt = FakeMqtt()
+    manager.matter_client = FakeClient()
+    await manager.core.matter_connected(manager.matter_client, [leak_node()])
+    await manager.auto_add()
+    view = manager.snapshot()["devices"][0]
+    assert view["can_command"] is False and view["can_identify"] is False

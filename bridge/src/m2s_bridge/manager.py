@@ -806,6 +806,7 @@ class Manager:
             "state": {1: "on", 0: "off"}.get(state, "unavailable"),
             # nazwa licznika wynika z nazwy gniazdka i nie jest edytowalna
             "can_identify": self.core.can_identify(dev),
+            "can_command": self.core.accepts_commands(dev),
             "startup": self.core.startup_of(dev),
             "cloud_id": dev.cloud_id,
             "vendor": attrs.get("0/40/1"),
