@@ -351,6 +351,11 @@ def create_app(
         await manager.identify(request.match_info["name"])
         return web.json_response({"ok": True})
 
+    async def device_startup(request: web.Request) -> web.Response:
+        data = await body(request)
+        await manager.set_startup(request.match_info["name"], str(data.get("mode", "")))
+        return web.json_response({"ok": True})
+
     async def device_light(request: web.Request) -> web.Response:
         data = await body(request)
 
@@ -438,6 +443,7 @@ def create_app(
             web.post("/api/devices/{name}/command", device_command),
             web.post("/api/devices/{name}/caption", device_caption),
             web.post("/api/devices/{name}/identify", device_identify),
+            web.post("/api/devices/{name}/startup", device_startup),
             web.post("/api/devices/{name}/cloud-id", device_cloud_id),
             web.post("/api/devices/{name}/light", device_light),
         ]

@@ -39,6 +39,9 @@ log = logging.getLogger(__name__)
 ONOFF_CLUSTER = 0x0006
 ONOFF_ATTRIBUTE = 0x0000
 STATE_INVALID = -1
+STARTUP_ATTRIBUTE = 0x4003  # OnOff.StartUpOnOff: null = ostatni stan
+STARTUP_VALUES: dict[str, int | None] = {"previous": None, "off": 0, "on": 1, "toggle": 2}
+STARTUP_NAMES = {0: "off", 1: "on", 2: "toggle"}
 IDENTIFY_CLUSTER = 0x0003
 IDENTIFY_SEC = 15  # tyle urządzenie daje o sobie znać (żarówka pulsuje, gniazdko miga diodą)
 LIGHT_TYPES = ("light_cct", GROUP_TYPE)
@@ -310,6 +313,48 @@ class BridgeCore:
                 command = "Off" if self.state_of(dev) == 1 else "On"
             return await self._fan_out(dev, lambda member: self._invoke(member, ONOFF_CLUSTER, command))
         return await self._invoke(dev, ONOFF_CLUSTER, command)
+
+    def startup_of(self, dev: Device) -> str | None:
+        """Zachowanie po powrocie zasilania: previous / on / off / toggle; None - brak danych albo nieobsługiwane.
+
+        Dla grupy: wspólna wartość członków albo "mixed", gdy się różnią."""
+        if dev.type == GROUP_TYPE:
+            values = {v for m in self.members_of(dev) if (v := self.startup_of(m)) is not None}
+            if not values:
+                return None
+            return values.pop() if len(values) == 1 else "mixed"
+        attributes = self._attributes(dev)
+        path = f"{dev.endpoint}/{ONOFF_CLUSTER}/{STARTUP_ATTRIBUTE}"
+        if attributes is None or path not in attributes:
+            return None
+        return STARTUP_NAMES.get(attributes[path], "previous") if attributes[path] is not None else "previous"
+
+    def can_set_startup(self, dev: Device) -> bool:
+        if dev.type == GROUP_TYPE:
+            return any(self.can_set_startup(m) for m in self.members_of(dev))
+        return dev.type != "meter" and self.startup_of(dev) is not None
+
+    async def set_startup(self, dev: Device, mode: str) -> bool:
+        """Ustawia zachowanie po powrocie zasilania w samym urządzeniu (atrybut StartUpOnOff)."""
+        if mode not in STARTUP_VALUES:
+            raise ValueError(f"nieznany tryb: {mode}")
+        if dev.type == GROUP_TYPE:
+            members = [m for m in self.members_of(dev) if self.can_set_startup(m)]
+            results = await asyncio.gather(*(self.set_startup(m, mode) for m in members))
+            return bool(results) and all(results)
+        matter, attributes = self._matter, self._attributes(dev)
+        if matter is None or attributes is None:
+            log.warning("%s: zapis ustawienia odrzucony - urządzenie niedostępne", dev.name)
+            return False
+        path = f"{dev.endpoint}/{ONOFF_CLUSTER}/{STARTUP_ATTRIBUTE}"
+        try:
+            await matter.write_attribute(dev.node_id, path, STARTUP_VALUES[mode])
+        except (MatterError, MatterConnectionError) as err:
+            log.error("%s: zapis %s nie powiódł się: %s", dev.name, path, err)
+            return False
+        attributes[path] = STARTUP_VALUES[mode]
+        log.info("%s: po powrocie zasilania: %s", dev.name, mode)
+        return True
 
     def last_seen(self, node_id: int) -> float | None:
         """Czas ostatniego znaku życia węzła (sekundy epoki) albo None, gdy nie było go od startu łącznika."""

@@ -157,6 +157,12 @@ class MatterClient:
             raise MatterConnectionError("połączenie z matter-server utracone")
         return item
 
+    async def write_attribute(self, node_id: int, attribute_path: str, value: Any) -> Any:
+        """Zapisuje atrybut węzła; ścieżka `endpoint/klaster/atrybut`."""
+        return await self.command(
+            "write_attribute", node_id=node_id, attribute_path=attribute_path, value=value
+        )
+
     async def device_command(
         self,
         node_id: int,

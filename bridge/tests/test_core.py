@@ -155,3 +155,28 @@ async def test_failed_command_republishes_real_state(core, recorder):
     await core.handle_mqtt(SET, b"ON")
     assert matter.sent == [(1, 1, 6, "On")]
     assert recorder.states() == [0, 0]
+
+
+async def test_startup_behaviour_read_and_write(core, recorder):
+    writes = []
+
+    class Writer(FakeMatter):
+        async def write_attribute(self, node_id, attribute_path, value):
+            writes.append((node_id, attribute_path, value))
+
+    node = make_node(on=True)
+    node["attributes"]["1/6/16387"] = 1
+    await core.matter_connected(Writer(), [node])
+    dev = core.devices[0]
+    assert core.startup_of(dev) == "on" and core.can_set_startup(dev)
+    assert await core.set_startup(dev, "previous")
+    assert writes == [(1, "1/6/16387", None)]
+    assert core.startup_of(dev) == "previous"
+    with pytest.raises(ValueError):
+        await core.set_startup(dev, "bzdura")
+
+
+async def test_startup_unsupported_without_attribute(core):
+    await core.matter_connected(FakeMatter(), [make_node(on=True)])
+    assert core.startup_of(core.devices[0]) is None
+    assert not core.can_set_startup(core.devices[0])

@@ -455,6 +455,19 @@ function detailsBox(dev, options) {
   facts.push(["Kanał SUPLA", dev.supla_channel >= 0 ? String(dev.supla_channel) : (dev.type === "light_group" ? "powstanie po dodaniu pierwszego światła" : "brak (bez osobnego kanału)")]);
   if (dev.groups && dev.groups.length) facts.push(["Grupy", dev.groups.join(", ")]);
   facts.push(["Ostatnio widziane", dev.state === "unavailable" ? timeAgo(dev.last_seen) : "teraz dostępne"]);
+  if (dev.startup) {
+    // Zachowanie urządzenia po powrocie zasilania - zapisywane w samym urządzeniu (Matter), nie w SUPLA.
+    const select = el("select");
+    for (const [value, label] of [["previous", "Ostatni stan (jak przed zanikiem)"], ["on", "Zawsze włączone"], ["off", "Zawsze wyłączone"]]) {
+      const option = el("option", null, label); option.value = value; select.append(option);
+    }
+    if (dev.startup === "mixed") { const option = el("option", null, "Różne w urządzeniach grupy"); option.value = "mixed"; option.disabled = true; select.append(option); }
+    select.value = dev.startup === "toggle" ? "previous" : dev.startup;
+    select.onchange = () => act(() => post(`/api/devices/${encodeURIComponent(dev.name)}/startup`, { mode: select.value }));
+    const label = el("label", null, "Po powrocie zasilania"); label.style.fontWeight = "400";
+    const row = el("div", "startup"); row.append(label, select);
+    left.append(row);
+  }
   const list = el("dl", "facts");
   for (const [term, value] of facts) list.append(el("dt", null, term), el("dd", null, value));
 

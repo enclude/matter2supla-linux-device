@@ -498,6 +498,15 @@ class Manager:
         if not await self.core.identify(dev):
             raise ManagerError("komenda nie została wykonana — urządzenie niedostępne lub błąd Matter")
 
+    async def set_startup(self, name: str, mode: str) -> None:
+        dev = self._find(name)
+        if mode not in ("previous", "on", "off"):
+            raise ManagerError("dozwolone: previous, on, off")
+        if not self.core.can_set_startup(dev):
+            raise ManagerError("to urządzenie nie obsługuje tego ustawienia albo jest niedostępne")
+        if not await self.core.set_startup(dev, mode):
+            raise ManagerError("nie udało się zapisać ustawienia - urządzenie niedostępne lub błąd Matter")
+
     async def set_caption(self, name: str, caption: str) -> None:
         async with self._change_lock:
             target = self._find(name)
@@ -754,6 +763,7 @@ class Manager:
             "state": {1: "on", 0: "off"}.get(state, "unavailable"),
             # nazwa licznika wynika z nazwy gniazdka i nie jest edytowalna
             "can_identify": self.core.can_identify(dev),
+            "startup": self.core.startup_of(dev),
             "cloud_id": dev.cloud_id,
             "vendor": attrs.get("0/40/1"),
             "product": attrs.get("0/40/3"),
