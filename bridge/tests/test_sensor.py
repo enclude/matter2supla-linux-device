@@ -1,0 +1,124 @@
+# SPDX-FileCopyrightText: 2026 Zjawa.IT - Jarosław Zjawiński <kontakt@zjawa.it>
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+"""Czujniki - na zrzutach diagnostycznych prawdziwych urządzeń IKEA."""
+
+import json
+from pathlib import Path
+
+import pytest
+
+from m2s_bridge import sensor
+from m2s_bridge.config import ConfigError, Device, load_config, parse_config
+from m2s_bridge.core import BridgeCore
+from m2s_bridge.manager import Manager
+from m2s_bridge.supla_config import build_supla_config, check_lock, lock_entries
+
+from test_manager import FakeClient, FakeMqtt
+from test_groups import paths  # noqa: F401  (fixture)
+
+FIXTURES = Path(__file__).parent / "fixtures"
+
+
+def fixture_node(name, node_id, **attributes):
+    node = json.loads((FIXTURES / name).read_text(encoding="utf-8"))["data"]["node"]
+    node["node_id"] = node_id
+    node["available"] = True
+    node["attributes"].update(attributes)
+    return node
+
+
+def leak_node(**attributes):
+    return fixture_node("ikea-klippbok-leak.json", 15, **attributes)
+
+
+class Recorder:
+    def __init__(self):
+        self.published = []
+
+    async def __call__(self, topic, payload, retain):
+        self.published.append((topic, payload, retain))
+
+
+async def make_core(devices, *nodes):
+    recorder = Recorder()
+    core = BridgeCore(parse_config({}), recorder)
+    core.set_devices(devices)
+    core.recorder = recorder
+    await core.matter_connected(FakeClient(), list(nodes))
+    return core
+
+
+def last(core):
+    return json.loads(core.recorder.published[-1][1]) if core.recorder.published[-1][1] else None
+
+
+# --- KLIPPBOK: czujnik zalania ----------------------------------------------------
+
+LEAK = Device(name="woda", node_id=15, endpoint=1, type="leak", supla_channel=0, measurements=("battery",))
+
+
+def test_leak_sensor_is_detected_on_real_dump():
+    attrs = leak_node()["attributes"]
+    assert sensor.slots(attrs) == [("leak", 1)]
+    assert sensor.detect(attrs, "leak", 1) == ("battery",)
+    assert sensor.battery_percent(attrs) == 100  # PowerSource 0/47/12 = 200 (jednostka 0,5 %)
+    assert sensor.battery_percent({"0/47/12": 87}) == 44 and sensor.battery_percent({}) is None
+    # BooleanState bez typu urządzenia "czujnik zalania" (np. czujnik drzwi) nie jest czujnikiem zalania
+    assert sensor.slots({**attrs, "1/29/0": [{"0": 21, "1": 1}]}) == []
+
+
+async def test_leak_state_and_battery():
+    core = await make_core([LEAK], leak_node())
+    assert last(core) == {"state": 0, "battery": 100}
+    await core.handle_event("attribute_updated", [15, "1/69/0", True])
+    await core.handle_event("attribute_updated", [15, "0/47/12", 150])
+    assert last(core) == {"state": 1, "battery": 75}
+    await core.handle_event("node_updated", {**leak_node(), "available": False})
+    assert core.recorder.published[-1][1] == ""  # niedostępny: pusty stan
+
+
+async def test_sensor_without_battery_has_no_battery_key():
+    plain = Device(name="woda", node_id=15, endpoint=1, type="leak", supla_channel=0)
+    core = await make_core([plain], leak_node())
+    assert last(core) == {"state": 0}
+
+
+async def test_sensor_has_no_set_topic():
+    core = await make_core([LEAK], leak_node())
+    assert core.set_topics == []
+
+
+def test_leak_channel_is_binary_parsed():
+    config = parse_config(
+        {"devices": [{"name": "woda", "node_id": 15, "endpoint": 1, "type": "leak", "supla_channel": 0, "measurements": ["battery"]}]}
+    )
+    channel = build_supla_config(config, "svr.example.org", "a@example.org")["channels"][0]
+    assert channel["type"] == "BinaryParsed" and channel["state"] == "state"
+    assert channel["source"]["state_topic"] == "m2s/15/1/leak/state"
+    assert channel["battery_level"] == "battery" and channel["multiplier_battery_level"] == 1
+    assert lock_entries(config)["0"]["type"] == "BinaryParsed"
+
+
+def test_sensor_measurements_validation():
+    ok = {"name": "woda", "node_id": 15, "endpoint": 1, "type": "leak", "supla_channel": 0}
+    assert parse_config({"devices": [ok]}).devices[0].measurements == ()
+    with pytest.raises(ConfigError):
+        parse_config({"devices": [{**ok, "measurements": ["voltage"]}]})
+
+
+async def test_manager_adds_leak_sensor_with_battery(paths):  # noqa: F811
+    manager = Manager(parse_config({}), paths[0], paths[1], "svr.example.org", "a@example.org")
+    manager.mqtt = FakeMqtt()
+    manager.matter_client = FakeClient()
+    await manager.core.matter_connected(manager.matter_client, [leak_node()])
+    candidates = manager.candidates()
+    assert [(c["type"], c["supported"]) for c in candidates] == [("leak", True)]
+    await manager.auto_add()
+    dev = load_config(paths[0]).devices[0]
+    assert (dev.type, dev.measurements, dev.supla_channel) == ("leak", ("battery",), 0)
+    assert manager.candidates() == []
+    view = manager.snapshot()["devices"][0]
+    assert view["sensor"] == {"state": 0, "battery": 100} and view["state"] == "measuring"
+    with pytest.raises(Exception):
+        await manager.device_command(dev.name, "on")

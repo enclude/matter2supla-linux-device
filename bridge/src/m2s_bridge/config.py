@@ -13,9 +13,10 @@ from typing import Any
 import yaml
 
 from .meter import MEASUREMENTS
+from .sensor import SENSOR_TYPES, slot_of
 
 # Typy urządzeń obsługiwane przez łącznik. Kolejne (jasność, czujniki) dojdą tutaj.
-DEVICE_TYPES = ("onoff", "light_cct", "light_rgb", "meter", "light_group")
+DEVICE_TYPES = ("onoff", "light_cct", "light_rgb", "meter", "light_group", *SENSOR_TYPES)
 
 # Grupa świateł: jeden kanał SUPLA sterujący kilkoma światłami naraz. Nie ma własnego węzła
 # (node_id i endpoint są zerowe), a jej skład (`members`) wolno zmieniać bez wpływu na kanał.
@@ -110,9 +111,15 @@ def _require_int(value: Any, what: str, minimum: int = 0, maximum: int | None = 
 
 def _measurements(item: dict[str, Any], dev_type: str, where: str) -> tuple[str, ...]:
     value = item.get("measurements")
+    if dev_type in SENSOR_TYPES:
+        if value is None:
+            return ()
+        if not isinstance(value, list) or any(m != "battery" for m in value):
+            raise ConfigError(f"{where}.measurements: dla czujnika dozwolona tylko lista [battery]")
+        return tuple(dict.fromkeys(value))
     if dev_type != "meter":
         if value:
-            raise ConfigError(f"{where}.measurements: pole dotyczy tylko typu `meter`")
+            raise ConfigError(f"{where}.measurements: pole dotyczy tylko typów `meter` i czujników")
         return ()
     if not isinstance(value, list) or not value or any(m not in MEASUREMENTS for m in value):
         raise ConfigError(
@@ -356,7 +363,7 @@ def save_config(config: Config, path: str | Path) -> None:
 def _check_unique(devices: list[Device]) -> None:
     seen_names: set[str] = set()
     seen_channels: dict[int, str] = {}
-    seen_targets: dict[tuple[int, int, bool], str] = {}
+    seen_targets: dict[tuple[int, int, str], str] = {}
     for dev in devices:
         if dev.name in seen_names:
             raise ConfigError(f"powtórzona nazwa urządzenia: {dev.name}")
@@ -369,8 +376,8 @@ def _check_unique(devices: list[Device]) -> None:
         seen_channels[dev.supla_channel] = dev.name
         if dev.type == GROUP_TYPE:
             continue  # grupa nie ma własnego węzła; jej światła mogą mieć też osobne kanały
-        # Licznik może dzielić endpoint z gniazdkiem — to osobny kanał z własnymi tematami.
-        target = (dev.node_id, dev.endpoint, dev.type == "meter")
+        # Licznik i czujniki mogą dzielić endpoint z innymi urządzeniami — to osobne kanały z własnymi tematami.
+        target = (dev.node_id, dev.endpoint, slot_of(dev.type))
         if target in seen_targets:
             raise ConfigError(
                 f"węzeł {dev.node_id} endpoint {dev.endpoint} zmapowany dwukrotnie "

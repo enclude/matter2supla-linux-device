@@ -18,6 +18,9 @@ Grupa świateł (`light_group`): tematy `<prefix>/group/<nazwa>/state|set`, form
   Stan zbiorczy: włączona, gdy świeci którekolwiek światło; jasność i biel z pierwszego
   świecącego (a gdy wszystkie zgaszone - z pierwszego dostępnego); niedostępna dopiero wtedy,
   gdy nie odpowiada żadne. Komenda trafia do wszystkich dostępnych świateł grupy naraz.
+Czujniki (`leak` i kolejne, patrz sensor.py), dla kanałów ...Parsed w supla-device:
+  stan    JSON z wartościami czujnika (np. `{"state": 1, "battery": 87}`); pusty komunikat =
+          niedostępny. Komend nie ma.
 Licznik energii (`meter`), dla kanału ElectricityMeterParsed w supla-device:
   stan    `{"voltage": V, "current": A, "power": W, "energy": kWh, "frequency": Hz}` — tylko
           pomiary zapisane dla urządzenia; pusty komunikat = niedostępne (kasuje też stan
@@ -34,7 +37,7 @@ import logging
 import time
 from typing import Any, Awaitable, Callable, Protocol
 
-from . import light, meter
+from . import light, meter, sensor
 from .config import GROUP_TYPE, NO_CHANNEL, Config, Device
 from .matter_client import MatterConnectionError, MatterError
 from .topics import set_topic, state_topic
@@ -95,8 +98,10 @@ class BridgeCore:
 
     def set_devices(self, devices: tuple[Device, ...] | list[Device]) -> None:
         self._devices = tuple(devices)
-        # Licznik nie przyjmuje komend, więc nie ma tematu `set`.
-        self._by_set_topic = {set_topic(self._prefix, d): d for d in self._devices if d.type != "meter"}
+        # Licznik i czujniki nie przyjmują komend, więc nie mają tematu `set`.
+        self._by_set_topic = {
+            set_topic(self._prefix, d): d for d in self._devices if d.type != "meter" and d.type not in sensor.SENSOR_TYPES
+        }
         self._by_node: dict[int, list[Device]] = {}
         for dev in self._devices:
             if dev.type == GROUP_TYPE:
@@ -209,7 +214,17 @@ class BridgeCore:
             return None
         return meter.values(attributes, dev.endpoint, dev.measurements)
 
+    def sensor_state(self, dev: Device) -> dict[str, float | int] | None:
+        """Wartości czujnika (jednostki SUPLA) albo None, gdy niedostępny lub niepełne dane."""
+        attributes = self._attributes(dev)
+        if attributes is None:
+            return None
+        return sensor.values(attributes, dev.type, dev.endpoint, dev.measurements)
+
     def state_payload(self, dev: Device) -> str:
+        if dev.type in sensor.SENSOR_TYPES:
+            current = self.sensor_state(dev)
+            return "" if current is None else json.dumps(current)
         if dev.type == "meter":
             current = self.meter_state(dev)
             return "" if current is None else json.dumps(current)
@@ -277,6 +292,15 @@ class BridgeCore:
             node = self._nodes.get(dev.node_id)
             if node is None:
                 log.warning("%s: węzeł %d nie istnieje w matter-server", dev.name, dev.node_id)
+            elif dev.type in sensor.SENSOR_TYPES:
+                if (dev.type, dev.endpoint) not in sensor.slots(node["attributes"]):
+                    log.warning(
+                        "%s: węzeł %d nie ma czujnika typu %s na endpoincie %d",
+                        dev.name,
+                        dev.node_id,
+                        dev.type,
+                        dev.endpoint,
+                    )
             elif dev.type == "meter":
                 if dev.endpoint not in meter.endpoints(node["attributes"]):
                     log.warning(
@@ -365,7 +389,7 @@ class BridgeCore:
     def can_set_startup(self, dev: Device) -> bool:
         if dev.type == GROUP_TYPE:
             return any(self.can_set_startup(m) for m in self.members_of(dev))
-        return dev.type != "meter" and self.startup_of(dev) is not None
+        return dev.type != "meter" and dev.type not in sensor.SENSOR_TYPES and self.startup_of(dev) is not None
 
     async def set_startup(self, dev: Device, mode: str) -> bool:
         """Ustawia zachowanie po powrocie zasilania w samym urządzeniu (atrybut StartUpOnOff)."""

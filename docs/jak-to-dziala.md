@@ -46,6 +46,14 @@ Kolor idzie do żarówki jako barwa i nasycenie (`MoveToHueAndSaturation`), a pr
 
 Licznik energii (`meter`) publikuje na `m2s/<node>/<endpoint>/meter/state` (retained) JSON z pomiarami, np. `{"voltage": 230.0, "current": 8.002, "power": 1840.5, "energy": 2.5}` (V, A, W, kWh), albo pusty komunikat, gdy urządzenie jest niedostępne. Licznik nie ma tematu komend.
 
+Czujniki (`leak` i kolejne typy) działają tak samo jak licznik: kanał `...Parsed` w `supla-device` czyta z brokera `m2s/<node>/<endpoint>/<typ>/state` (retained) - JSON z wartościami albo pusty komunikat, gdy czujnik jest niedostępny. Nie mają tematu komend. Poziom baterii (`battery`, 0-100, z klastra PowerSource) trafia do stanu tylko wtedy, gdy urządzenie go podaje; decyzja zapada przy dodaniu kanału i jest zapisana w `measurements: [battery]`.
+
+| Typ | Urządzenie | Kanał SUPLA | Stan |
+| --- | --- | --- | --- |
+| `leak` | czujnik zalania (KLIPPBOK, BooleanState, typ urządzenia 0x0043) | `BinaryParsed` | `{"state": 1, "battery": 100}` - `state` 1 = wykryto wodę |
+
+Funkcję kanału (np. „czujnik zalania”) ustawia się w SUPLA Cloud. Kanały `...Parsed` nie przechodzą w offline przy braku danych (pomiar jest wtedy niedostępny), podobnie jak licznik energii.
+
 ## Dostępność (offline)
 
 Kanał SUPLA przechodzi w offline, gdy:
@@ -67,7 +75,8 @@ Gdy kontroler zgłosi nowy węzeł, łącznik szuka endpointów z klastrem OnOff
 - OnOff + LevelControl + temperatura bieli + barwa i nasycenie (ColorCapabilities, bit HS) → typ `light_rgb`, kanał SUPLA `MatterRgbLight`; takie światła nie należą do grup (grupa obejmuje tylko `light_cct`);
 - inne światła (np. sam ściemniacz bez regulacji bieli) → bez kanału, jeszcze nieobsługiwane;
 - endpoint z pomiarem mocy lub energii → typ `meter`, kanał SUPLA `MatterMeter` (jednofazowy licznik energii, własne rozszerzenie `supla-device`); w panelu stoi pod swoim gniazdkiem ([zrzut](img/panel-kanaly.png)), a jego nazwa wynika z nazwy gniazdka;
-- węzły bez OnOff (czujniki itp.) → lista „bez kanału”, tylko diagnostyka.
+- czujnik zalania (BooleanState na endpoincie typu 0x0043) → typ `leak`, kanał SUPLA `BinaryParsed`; dopisywany od razu jak gniazdko (przy `auto_add: true`);
+- pozostałe czujniki i węzły bez obsługiwanego klastra → lista „bez kanału”, tylko diagnostyka.
 
 Wyjątki od automatu: endpointy z listy `no_channel` w `devices.yaml` (parowanie z wyborem „Bez kanału SUPLA”, światło wyjęte z grupy) oraz światła sparowane od razu do grupy.
 

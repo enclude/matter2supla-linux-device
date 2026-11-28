@@ -16,7 +16,7 @@ from typing import Any
 
 import aiomqtt
 
-from . import light, meter
+from . import light, meter, sensor
 from .config import (
     GROUP_TYPE,
     MAX_SUPLA_CHANNEL,
@@ -134,10 +134,10 @@ class Manager:
 
     # --- urządzenia ---------------------------------------------------------
 
-    def _mapped(self) -> set[tuple[int, int, bool]]:
-        # trzeci człon: czy to licznik (może dzielić endpoint z gniazdkiem)
+    def _mapped(self) -> set[tuple[int, int, str]]:
+        # trzeci człon: miejsce na endpoincie (licznik i czujniki mogą dzielić endpoint z innymi urządzeniami)
         return {
-            (d.node_id, d.endpoint, d.type == "meter") for d in self.config.devices if d.type != GROUP_TYPE
+            (d.node_id, d.endpoint, sensor.slot_of(d.type)) for d in self.config.devices if d.type != GROUP_TYPE
         }
 
     def groups(self) -> list[Device]:
@@ -198,14 +198,15 @@ class Manager:
             }
             endpoints = onoff_endpoints(attrs)
             meters = meter.endpoints(attrs)
-            if not endpoints and not meters:
+            sensors = sensor.slots(attrs)
+            if not endpoints and not meters and not sensors:
                 if not any(n == node_id for n, _, _ in mapped):
                     result.append(
                         {**base, "endpoint": None, "supported": False, "reason": "typ urządzenia jeszcze nieobsługiwany"}
                     )
                 continue
             for endpoint in endpoints:
-                if (node_id, endpoint, False) in mapped:
+                if (node_id, endpoint, "") in mapped:
                     continue
                 kind = endpoint_type(attrs, endpoint)
                 entry = {**base, "endpoint": endpoint, "type": kind, "caption": self._local_name(node_id, endpoint)}
@@ -233,7 +234,7 @@ class Manager:
                     result.append({**entry, "supported": False, "reason": "ten rodzaj światła nie jest jeszcze obsługiwany"})
             # Licznik energii to osobny kanał (zwykle osobny endpoint, bez klastra OnOff).
             for endpoint in meters:
-                if (node_id, endpoint, True) in mapped:
+                if (node_id, endpoint, "meter") in mapped:
                     continue
                 entry = {**base, "endpoint": endpoint, "type": "meter"}
                 if (node_id, endpoint) in self.config.no_channel:
@@ -242,12 +243,22 @@ class Manager:
                     )
                 else:
                     result.append({**entry, "supported": True, "reason": None})
+            for kind, endpoint in sensors:
+                if (node_id, endpoint, kind) in mapped:
+                    continue
+                entry = {**base, "endpoint": endpoint, "type": kind, "caption": self._local_name(node_id, endpoint)}
+                if (node_id, endpoint) in self.config.no_channel:
+                    result.append(
+                        {**entry, "supported": False, "manual": True, "reason": "czujnik bez kanału SUPLA (wybór w panelu)"}
+                    )
+                else:
+                    result.append({**entry, "supported": True, "reason": None})
         return result
 
     def _new_name(self, product: Any, node_id: int, endpoint: int, taken: set[str], kind: str = "") -> str:
         slug = _SLUG.sub("_", str(product or "").lower()).strip("_") or "matter"
-        if kind == "meter":
-            name = f"{slug}_{node_id}_meter"
+        if kind == "meter" or kind in sensor.SENSOR_TYPES:
+            name = f"{slug}_{node_id}_{kind}"
         else:
             name = f"{slug}_{node_id}" if endpoint == 1 else f"{slug}_{node_id}_e{endpoint}"
         candidate, counter = name, 2
@@ -269,6 +280,8 @@ class Manager:
         if kind == "meter":
             caption = f"{caption} — licznik" if caption else "Licznik energii"
             measurements = meter.detect(node["attributes"], candidate["endpoint"])
+        elif kind in sensor.SENSOR_TYPES:
+            measurements = sensor.detect(node["attributes"], kind, candidate["endpoint"])
         return Device(
             name=self._new_name(
                 candidate["product"], candidate["node_id"], candidate["endpoint"], {d.name for d in devices}, kind
@@ -354,10 +367,14 @@ class Manager:
                     )
             return added
 
-    async def add_device(self, node_id: int, endpoint: int) -> Device:
+    async def add_device(self, node_id: int, endpoint: int, kind: str | None = None) -> Device:
         async with self._change_lock:
             for candidate in self.candidates():
-                if candidate["node_id"] == node_id and candidate["endpoint"] == endpoint:
+                if (
+                    candidate["node_id"] == node_id
+                    and candidate["endpoint"] == endpoint
+                    and (kind is None or candidate.get("type") == kind)
+                ):
                     break
             else:
                 raise ManagerError("nie ma takiego wolnego endpointu z obsługiwanym klastrem")
@@ -584,8 +601,8 @@ class Manager:
         mapped = {"on": "On", "off": "Off", "toggle": "Toggle"}.get(command)
         if mapped is None:
             raise ManagerError("nieznana komenda")
-        if self._find(name).type == "meter":
-            raise ManagerError("licznik nie przyjmuje komend")
+        if self._find(name).type == "meter" or self._find(name).type in sensor.SENSOR_TYPES:
+            raise ManagerError("ten rodzaj urządzenia nie przyjmuje komend")
         if not await self.core.send_command(self._find(name), mapped):
             raise ManagerError("komenda nie została wykonana — urządzenie niedostępne lub błąd Matter")
 
@@ -722,7 +739,10 @@ class Manager:
         endpoints = onoff_endpoints(attributes)
         async with self._change_lock:
             if target == TARGET_NONE:
-                held = [(node_id, e) for e in dict.fromkeys(endpoints + meter.endpoints(attributes))]
+                held = [
+                    (node_id, e)
+                    for e in dict.fromkeys(endpoints + meter.endpoints(attributes) + [e for _, e in sensor.slots(attributes)])
+                ]
                 await self._apply(list(self.config.devices), list(self.config.no_channel) + held)
                 return "Urządzenie zostaje bez kanału SUPLA; kanał można dodać z listy urządzeń."
             lights = [(node_id, e) for e in endpoints if endpoint_type(attributes, e) == "light_cct"]
@@ -801,6 +821,10 @@ class Manager:
             view["members_available"] = sum(
                 1 for member in self.core.members_of(dev) if self.core.light_state(member) is not None
             )
+        if dev.type in sensor.SENSOR_TYPES:
+            values = self.core.sensor_state(dev)
+            view["state"] = "measuring" if values else "unavailable"
+            view["sensor"] = values
         if dev.type == "meter":
             # jednostki jak w stanie MQTT: V, A, W, kWh, Hz
             values = self.core.meter_state(dev)

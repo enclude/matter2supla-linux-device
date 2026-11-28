@@ -335,6 +335,16 @@ function meterText(values) {
   return METER_FIELDS.filter(([key]) => values[key] != null)
     .map(([key, label, unit, digits]) => `${label} ${values[key].toFixed(digits).replace(".", ",")} ${unit}`).join(" · ");
 }
+function sensorText(dev) {
+  // Bieżące wartości czujnika, np. „sucho · bateria 100%”.
+  const v = dev.sensor;
+  if (!v) return "";
+  const num = (x, digits) => x.toFixed(digits).replace(".", ",");
+  const parts = [];
+  if (dev.type === "leak") parts.push(v.state ? "WYKRYTO WODĘ" : "sucho");
+  if (v.battery != null) parts.push(`bateria ${v.battery}%`);
+  return parts.join(" · ");
+}
 let busy = false;
 let suplaDirty = false;
 let firstState = true;
@@ -361,7 +371,7 @@ function diagLink(nodeId) {
 
 const sliderHold = {};  // nazwa urządzenia -> czas ostatniego ruchu suwakiem (nie nadpisujemy w trakcie)
 const openRows = new Set();  // rozwinięte wiersze - lista jest przebudowywana co 2 s
-const TYPE_LABEL = { onoff: "gniazdko / przekaźnik", light_cct: "światło z regulacją bieli", light_rgb: "światło kolorowe (RGB + biel)", meter: "licznik energii", light_group: "grupa świateł" };
+const TYPE_LABEL = { onoff: "gniazdko / przekaźnik", light_cct: "światło z regulacją bieli", light_rgb: "światło kolorowe (RGB + biel)", meter: "licznik energii", leak: "czujnik zalania", light_group: "grupa świateł" };
 const RENAME_PROMPT = "Nazwa w panelu (lokalna, nie jest wysyłana do SUPLA Cloud). Kanał dostaje ją w SUPLA tylko przy pierwszej rejestracji, np. po zmianie konta lub serwera - istniejącej nazwy w Cloud nie zmienia:";
 const SUPLA_CLOUD = "https://cloud.supla.org";  // przekierowuje na serwer konta
 let lastState = { devices: [] };
@@ -380,7 +390,7 @@ function timeAgo(seconds) {
 function commandButtons(dev) {
   // Przełącznik i „Znajdź” - zawsze widoczne w wierszu.
   const buttons = [];
-  if (dev.type === "meter") return buttons;  // licznik nie przyjmuje komend
+  if (dev.type === "meter" || dev.sensor !== undefined) return buttons;  // licznik i czujniki nie przyjmują komend
   // Jeden przełącznik pokazuje stan i go zmienia; faktyczny stan wraca z urządzenia przy odświeżeniu.
   const toggle = el("label", "switch");
   const input = el("input");
@@ -441,6 +451,7 @@ function summary(dev) {
   if (dev.type === "light_group") parts.push(`świateł: ${dev.members.length}, dostępnych: ${dev.members_available}`);
   if ((dev.type === "light_cct" || dev.type === "light_rgb" || dev.type === "light_group") && dev.state === "on" && dev.brightness != null) parts.push(`jasność ${dev.brightness}%`);
   if (dev.meter) parts.push(meterText(dev.meter));
+  if (dev.sensor) parts.push(sensorText(dev));
   if (dev.type !== "light_group" && dev.type !== "meter") {
     // Model, a gdy jest już w tytule (urządzenie bez własnej nazwy) - numer węzła, żeby dało się je odróżnić.
     const title = dev.caption || dev.product || dev.name;
@@ -510,7 +521,7 @@ function detailsBox(dev, options) {
   }
   if (dev.supla_channel < 0 && dev.type !== "light_group" && options.canAdd) {
     const add = el("button", null, "Dodaj osobny kanał SUPLA");
-    add.onclick = () => { if (confirm(ADD_CHANNEL_CONFIRM)) act(() => post("/api/devices", { node_id: dev.node_id, endpoint: dev.endpoint })); };
+    add.onclick = () => { if (confirm(ADD_CHANNEL_CONFIRM)) act(() => post("/api/devices", { node_id: dev.node_id, endpoint: dev.endpoint, type: dev.type })); };
     tools.append(add);
   }
   if (dev.type !== "light_group") tools.append(diagLink(dev.node_id));
@@ -602,7 +613,7 @@ function renderCandidates(state) {
     const actions = el("div", "actions");
     if (c.supported || c.manual) {
       const add = el("button", c.supported ? "primary" : null, "Dodaj kanał");
-      add.onclick = () => { if (confirm(ADD_CHANNEL_CONFIRM)) act(() => post("/api/devices", { node_id: c.node_id, endpoint: c.endpoint })); };
+      add.onclick = () => { if (confirm(ADD_CHANNEL_CONFIRM)) act(() => post("/api/devices", { node_id: c.node_id, endpoint: c.endpoint, type: c.type })); };
       actions.append(add);
     }
     const rename = el("button", null, "Zmień nazwę");

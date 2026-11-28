@@ -320,7 +320,8 @@ def create_app(
 
     async def add_device(request: web.Request) -> web.Response:
         data = await body(request)
-        dev = await manager.add_device(int(data["node_id"]), int(data["endpoint"]))
+        kind = data.get("type")
+        dev = await manager.add_device(int(data["node_id"]), int(data["endpoint"]), kind if isinstance(kind, str) else None)
         return web.json_response({"ok": True, "name": dev.name, "supla_channel": dev.supla_channel})
 
     async def device_command(request: web.Request) -> web.Response:

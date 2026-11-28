@@ -30,6 +30,7 @@ SUPLA_TYPES = {
     "light_rgb": "MatterRgbLight",
     "meter": "MatterMeter",
     "light_group": "MatterLight",
+    "leak": "BinaryParsed",
 }
 LIGHT_TYPES = ("light_cct", "light_rgb", "light_group")
 
@@ -98,7 +99,36 @@ def _meter_channel(config: Config, dev: Device) -> dict[str, Any]:
     return channel
 
 
+# Klucze komunikatu stanu czujnika -> parametry kanału ...Parsed (typ kanału wynika z SUPLA_TYPES).
+SENSOR_PARAMETERS = {
+    "leak": {"state": "state"},
+}
+
+
+def _sensor_channel(config: Config, dev: Device) -> dict[str, Any]:
+    """Czujnik: kanał ...Parsed czytający stan JSON z brokera (jak licznik energii)."""
+    source: dict[str, Any] = {"type": "MQTT", "state_topic": state_topic(config.mqtt.topic_prefix, dev)}
+    if config.state_expiration_sec:
+        source["expiration_time_sec"] = config.state_expiration_sec
+    channel: dict[str, Any] = {
+        "type": SUPLA_TYPES[dev.type],
+        "name": dev.name,
+        "channel_number": dev.supla_channel,
+    }
+    if dev.caption:
+        channel["initial_caption"] = dev.caption
+    channel["source"] = source
+    channel["parser"] = {"type": "Json", "refresh_time_ms": 1000}
+    channel.update(SENSOR_PARAMETERS[dev.type])
+    if "battery" in dev.measurements:
+        channel["battery_level"] = "battery"
+        channel["multiplier_battery_level"] = 1
+    return channel
+
+
 def _channel(config: Config, dev: Device) -> dict[str, Any]:
+    if dev.type in SENSOR_PARAMETERS:
+        return _sensor_channel(config, dev)
     if dev.type in LIGHT_TYPES:
         return _light_channel(config, dev)
     if dev.type == "meter":
