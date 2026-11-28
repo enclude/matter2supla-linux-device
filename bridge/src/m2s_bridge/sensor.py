@@ -7,6 +7,10 @@ Typy urządzeń w devices.yaml i ich kanały SUPLA:
 
   leak     czujnik zalania (BooleanState, typ urządzenia 0x0043)   BinaryParsed
            stan `{"state": 1|0}` - 1 = wykryto wodę
+  climate  temperatura i wilgotność (TemperatureMeasurement 0x0402 +   ThermHygroMeterParsed
+           RelativeHumidityMeasurement 0x0405, mogą być na osobnych
+           endpointach - TIMMERFLOTTE: temperatura na 1, wilgotność na 2)
+           stan `{"temperature": °C, "humidity": %}`
 
 Stan to JSON z dokładnie tymi kluczami, które są zapisane dla urządzenia, albo pusty komunikat,
 gdy urządzenie jest niedostępne lub nie podaje któregoś z pomiarów (tak samo jak dla licznika:
@@ -20,11 +24,13 @@ from __future__ import annotations
 from typing import Any
 
 BOOLEAN_STATE_CLUSTER = 0x0045
+TEMPERATURE_CLUSTER = 0x0402  # MeasuredValue: 0,01 °C, null = brak pomiaru
+HUMIDITY_CLUSTER = 0x0405  # MeasuredValue: 0,01 %
 POWER_SOURCE_CLUSTER = 0x002F
 BATTERY_ATTRIBUTE = 0x000C  # BatPercentRemaining: 0-200, jednostka 0,5 %
 LEAK_DEVICE_TYPE = 0x0043  # Water Leak Detector
 
-SENSOR_TYPES = ("leak",)
+SENSOR_TYPES = ("leak", "climate")
 BATTERY = "battery"
 
 
@@ -61,7 +67,24 @@ def slots(attributes: dict[str, Any]) -> list[tuple[str, int]]:
         flag = attributes.get(f"{endpoint}/{BOOLEAN_STATE_CLUSTER}/0")
         if LEAK_DEVICE_TYPE in _device_types(attributes, endpoint) and isinstance(flag, bool):
             found.append(("leak", endpoint))
+    temperature = _first_endpoint(attributes, TEMPERATURE_CLUSTER)
+    if temperature is not None and _first_endpoint(attributes, HUMIDITY_CLUSTER) is not None:
+        found.append(("climate", temperature))
     return found
+
+
+def _first_endpoint(attributes: dict[str, Any], cluster: int) -> int | None:
+    for endpoint in _endpoints(attributes):
+        if endpoint != 0 and f"{endpoint}/{cluster}/0" in attributes:
+            return endpoint
+    return None
+
+
+def humidity_endpoint(attributes: dict[str, Any], endpoint: int) -> int | None:
+    """Endpoint z wilgotnością dla czujnika `climate` o temperaturze na `endpoint`."""
+    if f"{endpoint}/{HUMIDITY_CLUSTER}/0" in attributes:
+        return endpoint
+    return _first_endpoint(attributes, HUMIDITY_CLUSTER)
 
 
 def is_sensor_endpoint(attributes: dict[str, Any], endpoint: int) -> bool:
@@ -86,6 +109,13 @@ def _main_values(attributes: dict[str, Any], dev_type: str, endpoint: int) -> di
     if dev_type == "leak":
         flag = attributes.get(f"{endpoint}/{BOOLEAN_STATE_CLUSTER}/0")
         return {"state": int(flag)} if isinstance(flag, bool) else None
+    if dev_type == "climate":
+        humidity_at = humidity_endpoint(attributes, endpoint)
+        temperature = _number(attributes.get(f"{endpoint}/{TEMPERATURE_CLUSTER}/0"))
+        humidity = _number(attributes.get(f"{humidity_at}/{HUMIDITY_CLUSTER}/0")) if humidity_at is not None else None
+        if temperature is None or humidity is None or not -10000 <= temperature <= 20000 or not 0 <= humidity <= 10000:
+            return None
+        return {"temperature": round(temperature / 100, 2), "humidity": round(humidity / 100, 2)}
     return None
 
 

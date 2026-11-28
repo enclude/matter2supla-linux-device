@@ -64,6 +64,7 @@ Co obsługuje łącznik:
 | Grupy świateł: jeden kanał SUPLA dla kilku świateł tego samego rodzaju, obok zwykłych kanałów pojedynczych ([opis](docs/panel-www.md#grupy-świateł)) | działa na sprzęcie (cztery KAJPLATS GU10 w jednej grupie): parowanie prosto do grupy, stan w SUPLA, sterowanie z panelu; sterowanie grupą z aplikacji SUPLA do potwierdzenia |
 | Licznik energii gniazdka (napięcie, prąd, moc, energia) - kanał jednofazowy | działa na sprzęcie (GRILLPLATS) |
 | Czujnik zalania (KLIPPBOK) jako kanał SUPLA `BinaryParsed`, z poziomem baterii | napisane, testy na zrzucie prawdziwego czujnika; w SUPLA niesprawdzone na sprzęcie |
+| Czujnik temperatury i wilgotności (TIMMERFLOTTE) jako kanał SUPLA `ThermHygroMeterParsed`, z poziomem baterii | napisane, testy na zrzucie prawdziwego czujnika; w SUPLA niesprawdzone na sprzęcie |
 | Inne czujniki i typy urządzeń | nieobsługiwane - można sparować i pobrać zrzut diagnostyczny |
 
 Jeszcze niesprawdzone na sprzęcie: instalacja `host/install.sh` na czystym systemie, odtworzenie kopii zapasowej na drugim urządzeniu, płytki ESP32-C6 i ESP32-H2 jako dongle.

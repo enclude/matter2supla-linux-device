@@ -122,3 +122,49 @@ async def test_manager_adds_leak_sensor_with_battery(paths):  # noqa: F811
     assert view["sensor"] == {"state": 0, "battery": 100} and view["state"] == "measuring"
     with pytest.raises(Exception):
         await manager.device_command(dev.name, "on")
+
+
+# --- TIMMERFLOTTE: temperatura i wilgotność (osobne endpointy) --------------------------
+
+CLIMATE = Device(name="klimat", node_id=16, endpoint=1, type="climate", supla_channel=1, measurements=("battery",))
+
+
+def climate_node(**attributes):
+    return fixture_node("ikea-timmerflotte-climate.json", 16, **attributes)
+
+
+def test_climate_sensor_is_detected_on_real_dump():
+    attrs = climate_node()["attributes"]
+    assert sensor.slots(attrs) == [("climate", 1)]  # temperatura na endpoincie 1, wilgotność na 2
+    assert sensor.humidity_endpoint(attrs, 1) == 2
+    assert sensor.detect(attrs, "climate", 1) == ("battery",)
+    # sam czujnik temperatury (bez wilgotności) nie jest jeszcze obsługiwany
+    assert sensor.slots({k: v for k, v in attrs.items() if not k.startswith("2/")}) == []
+
+
+async def test_climate_state_in_celsius_and_percent():
+    core = await make_core([CLIMATE], climate_node())
+    assert last(core) == {"temperature": 22.99, "humidity": 35.93, "battery": 100}
+    await core.handle_event("attribute_updated", [16, "1/1026/0", -550])
+    await core.handle_event("attribute_updated", [16, "2/1029/0", 6000])
+    assert last(core) == {"temperature": -5.5, "humidity": 60.0, "battery": 100}
+    await core.handle_event("attribute_updated", [16, "1/1026/0", None])  # brak pomiaru
+    assert core.recorder.published[-1][1] == ""
+
+
+async def test_climate_on_single_endpoint():
+    # ALPSTUGA: temperatura i wilgotność na tym samym endpoincie
+    attrs = {"1/29/0": [{"0": 44, "1": 1}], "1/1026/0": 2068, "1/1029/0": 3263}
+    plain = Device(name="klimat", node_id=17, endpoint=1, type="climate", supla_channel=0)
+    core = await make_core([plain], {"node_id": 17, "available": True, "attributes": attrs})
+    assert last(core) == {"temperature": 20.68, "humidity": 32.63}
+
+
+def test_climate_channel_is_thermhygrometer():
+    config = parse_config(
+        {"devices": [{"name": "klimat", "node_id": 16, "endpoint": 1, "type": "climate", "supla_channel": 0, "measurements": ["battery"]}]}
+    )
+    channel = build_supla_config(config, "svr.example.org", "a@example.org")["channels"][0]
+    assert channel["type"] == "ThermHygroMeterParsed"
+    assert (channel["temperature"], channel["humidity"]) == ("temperature", "humidity")
+    assert channel["source"]["state_topic"] == "m2s/16/1/climate/state" and channel["battery_level"] == "battery"

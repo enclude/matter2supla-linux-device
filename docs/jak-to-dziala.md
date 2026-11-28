@@ -51,6 +51,7 @@ Czujniki (`leak` i kolejne typy) działają tak samo jak licznik: kanał `...Par
 | Typ | Urządzenie | Kanał SUPLA | Stan |
 | --- | --- | --- | --- |
 | `leak` | czujnik zalania (KLIPPBOK, BooleanState, typ urządzenia 0x0043) | `BinaryParsed` | `{"state": 1, "battery": 100}` - `state` 1 = wykryto wodę |
+| `climate` | temperatura i wilgotność (TIMMERFLOTTE, ALPSTUGA; klastry 0x0402 i 0x0405, mogą leżeć na różnych endpointach) | `ThermHygroMeterParsed` | `{"temperature": 22.99, "humidity": 35.93, "battery": 100}` - °C i % |
 
 Funkcję kanału (np. „czujnik zalania”) ustawia się w SUPLA Cloud. Kanały `...Parsed` nie przechodzą w offline przy braku danych (pomiar jest wtedy niedostępny), podobnie jak licznik energii.
 
@@ -76,6 +77,7 @@ Gdy kontroler zgłosi nowy węzeł, łącznik szuka endpointów z klastrem OnOff
 - inne światła (np. sam ściemniacz bez regulacji bieli) → bez kanału, jeszcze nieobsługiwane;
 - endpoint z pomiarem mocy lub energii → typ `meter`, kanał SUPLA `MatterMeter` (jednofazowy licznik energii, własne rozszerzenie `supla-device`); w panelu stoi pod swoim gniazdkiem ([zrzut](img/panel-kanaly.png)), a jego nazwa wynika z nazwy gniazdka;
 - czujnik zalania (BooleanState na endpoincie typu 0x0043) → typ `leak`, kanał SUPLA `BinaryParsed`; dopisywany od razu jak gniazdko (przy `auto_add: true`);
+- temperatura (0x0402) razem z wilgotnością (0x0405) na jednym lub różnych endpointach → typ `climate`, kanał SUPLA `ThermHygroMeterParsed`; sama temperatura bez wilgotności jeszcze nieobsługiwana;
 - pozostałe czujniki i węzły bez obsługiwanego klastra → lista „bez kanału”, tylko diagnostyka.
 
 Wyjątki od automatu: endpointy z listy `no_channel` w `devices.yaml` (parowanie z wyborem „Bez kanału SUPLA”, światło wyjęte z grupy) oraz światła sparowane od razu do grupy.

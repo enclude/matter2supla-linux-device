@@ -31,6 +31,7 @@ SUPLA_TYPES = {
     "meter": "MatterMeter",
     "light_group": "MatterLight",
     "leak": "BinaryParsed",
+    "climate": "ThermHygroMeterParsed",
 }
 LIGHT_TYPES = ("light_cct", "light_rgb", "light_group")
 
@@ -102,6 +103,7 @@ def _meter_channel(config: Config, dev: Device) -> dict[str, Any]:
 # Klucze komunikatu stanu czujnika -> parametry kanału ...Parsed (typ kanału wynika z SUPLA_TYPES).
 SENSOR_PARAMETERS = {
     "leak": {"state": "state"},
+    "climate": {"temperature": "temperature", "humidity": "humidity", "multiplier_temp": 1, "multiplier_humi": 1},
 }
 
 
