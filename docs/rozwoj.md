@@ -63,7 +63,7 @@ Budowa obu obrazów była sprawdzona na x86-64 i na arm64 (Raspberry Pi 4B).
 
 ## Rozszerzenia supla-device
 
-`supla-device/extensions/` zawiera własne typy kanałów dołączane przy budowie obrazu (`SUPLA_LINUX_EXTENSION_DIRS` w `supla-device/Dockerfile`). `matter_light` dodaje typ `MatterLight` - ściemniacz z regulacją bieli: przekazuje jasność i biel z SUPLA do łącznika i odbiera stan światła. Wersja `supla-device` dla Linuksa ma dla świateł tylko klasę testową bez sterowania, stąd własne rozszerzenie.
+`supla-device/extensions/` zawiera własne typy kanałów dołączane przy budowie obrazu (`SUPLA_LINUX_EXTENSION_DIRS` w `supla-device/Dockerfile`). `matter_light` dodaje typ `MatterLight` - ściemniacz z regulacją bieli: przekazuje jasność i biel z SUPLA do łącznika i odbiera stan światła. Ten sam plik zawiera typ `MatterRgbLight` - żarówka kolorowa (ściemniacz CCT + RGB) z własnym formatem tematów (opis w [jak-to-dziala.md](jak-to-dziala.md)). Wersja `supla-device` dla Linuksa ma dla świateł tylko klasę testową bez sterowania, stąd własne rozszerzenie.
 
 `matter_meter` dodaje typ `MatterMeter` - standardowy `ElectricityMeterParsed` zgłaszany jako jednofazowy, który przy nieważnych danych (urządzenie niedostępne, stan wygasł) przełącza kanał w offline.
 

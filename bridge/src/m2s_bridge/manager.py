@@ -27,7 +27,7 @@ from .config import (
     check_devices,
     save_config,
 )
-from .core import LIGHT_TYPES, BridgeCore
+from .core import LIGHT_TYPES, RGB_TYPE, BridgeCore
 from .diagnostics import build_diagnostics
 from .matter_client import MatterConnectionError, MatterError
 from .supla_config import ChannelConflictError, write_supla_config
@@ -43,6 +43,8 @@ TARGET_NONE = "none"
 TARGET_GROUP_PREFIX = "group:"
 NEW_NODE_WAIT_SEC = 15
 MAX_GROUP_MEMBERS = 32
+# Pojedyncze światła, które mogą mieć własny kanał SUPLA (do grupy trafiają tylko `light_cct`).
+SINGLE_LIGHTS = ("light_cct", RGB_TYPE)
 LEVEL_CONTROL_CLUSTER = 8
 
 ACCOUNT_FILE_NAME = "account.json"
@@ -85,7 +87,7 @@ def endpoint_type(attributes: dict[str, Any], endpoint: int) -> str | None:
     if not is_dimmable(attributes, endpoint):
         return "onoff"
     if light.level_path(endpoint) in attributes and light.mireds_path(endpoint) in attributes:
-        return "light_cct"
+        return RGB_TYPE if light.is_color_capable(attributes, endpoint) else "light_cct"
     return None
 
 
@@ -152,7 +154,7 @@ class Manager:
         taken = {d.name for d in self.config.devices}
         extras: list[Device] = []
         for candidate in self.candidates():
-            if candidate["supported"] or candidate.get("type") != "light_cct":
+            if candidate["supported"] or candidate.get("type") not in SINGLE_LIGHTS:
                 continue
             name = self._new_name(candidate["product"], candidate["node_id"], candidate["endpoint"], taken)
             taken.add(name)
@@ -161,7 +163,7 @@ class Manager:
                     name=name,
                     node_id=candidate["node_id"],
                     endpoint=candidate["endpoint"],
-                    type="light_cct",
+                    type=candidate["type"],
                     supla_channel=NO_CHANNEL,
                     caption=self._local_name(candidate["node_id"], candidate["endpoint"])
                     or str(candidate["product"] or "")
@@ -207,7 +209,7 @@ class Manager:
                     continue
                 kind = endpoint_type(attrs, endpoint)
                 entry = {**base, "endpoint": endpoint, "type": kind, "caption": self._local_name(node_id, endpoint)}
-                can_be_channel = kind == "onoff" or (kind == "light_cct" and self.config.lights_as_channels)
+                can_be_channel = kind == "onoff" or (kind in SINGLE_LIGHTS and self.config.lights_as_channels)
                 in_groups = self._groups_of((node_id, endpoint)) if kind == "light_cct" else []
                 # `manual`: kanał nie powstanie sam, ale da się go dodać przyciskiem w panelu.
                 if in_groups:
@@ -221,9 +223,9 @@ class Manager:
                     )
                 elif kind == "onoff":
                     result.append({**entry, "supported": True, "reason": None})
-                elif kind == "light_cct" and self.config.lights_as_channels:
+                elif kind in SINGLE_LIGHTS and self.config.lights_as_channels:
                     result.append({**entry, "supported": True, "reason": None})
-                elif kind == "light_cct":
+                elif kind in SINGLE_LIGHTS:
                     result.append(
                         {**entry, "supported": False, "reason": "światło sterowane tylko z panelu (lights_as_channels: false)"}
                     )
@@ -405,7 +407,7 @@ class Manager:
             node = self.core.nodes.get(node_id)
             if node is None or endpoint_type(node["attributes"], endpoint) != "light_cct":
                 raise ManagerError(
-                    f"węzeł {node_id} endpoint {endpoint} nie jest światłem z regulacją jasności i bieli"
+                    f"węzeł {node_id} endpoint {endpoint} nie jest światłem z regulacją jasności i bieli (bez koloru)"
                 )
         return members
 
@@ -484,11 +486,24 @@ class Manager:
                 return dev
         raise ManagerError(f"nie ma urządzenia {name}")
 
-    async def set_light(self, name: str, brightness: int | None, temperature: int | None) -> None:
+    async def set_light(
+        self, name: str, brightness: int | None, temperature: int | None, color: str | None = None
+    ) -> None:
         dev = self._find(name)
         if dev.type not in LIGHT_TYPES:
             raise ManagerError("to urządzenie nie jest światłem")
-        if not await self.core.set_light(dev, brightness, temperature):
+        if color is not None and dev.type != RGB_TYPE:
+            raise ManagerError("to światło nie ma regulacji koloru")
+        if dev.type == RGB_TYPE:
+            rgb = None
+            if color is not None:
+                if not re.fullmatch(r"#[0-9a-fA-F]{6}", color):
+                    raise ManagerError("kolor ma mieć postać #rrggbb")
+                rgb = (int(color[1:3], 16), int(color[3:5], 16), int(color[5:7], 16))
+            done = await self.core.set_light_rgb(dev, brightness, temperature, rgb)
+        else:
+            done = await self.core.set_light(dev, brightness, temperature)
+        if not done:
             raise ManagerError("komenda nie została wykonana — urządzenie niedostępne lub błąd Matter")
 
     async def identify(self, name: str) -> None:
@@ -712,7 +727,7 @@ class Manager:
                 return "Urządzenie zostaje bez kanału SUPLA; kanał można dodać z listy urządzeń."
             lights = [(node_id, e) for e in endpoints if endpoint_type(attributes, e) == "light_cct"]
             if not lights:
-                return "To nie jest światło z regulacją jasności i bieli, więc nie trafiło do grupy."
+                return "To urządzenie nie trafiło do grupy (grupy obejmują tylko światła z regulacją jasności i bieli, bez koloru)."
             group = self._find_group(target[len(TARGET_GROUP_PREFIX):])
             await self._set_group_members(group.name, list(group.members) + lights)
             return f"Światło dodane do grupy „{group.caption or group.name}”."
@@ -779,6 +794,9 @@ class Manager:
             current = self.core.light_state(dev)
             view["brightness"] = current["brightness"] if current else None
             view["temperature"] = current["temperature"] if current else None
+            if dev.type == RGB_TYPE:
+                view["mode"] = "color" if current and current["mode"] == light.MODE_COLOR else "white"
+                view["color"] = "#%02x%02x%02x" % current["rgb"] if current else None  # type: ignore[str-format]
         if dev.type == GROUP_TYPE:
             view["members_available"] = sum(
                 1 for member in self.core.members_of(dev) if self.core.light_state(member) is not None

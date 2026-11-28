@@ -27,10 +27,11 @@ STATE_FILES_PATH = "/var/lib/supla-device"
 SUPLA_TYPES = {
     "onoff": "CustomRelay",
     "light_cct": "MatterLight",
+    "light_rgb": "MatterRgbLight",
     "meter": "MatterMeter",
     "light_group": "MatterLight",
 }
-LIGHT_TYPES = ("light_cct", "light_group")
+LIGHT_TYPES = ("light_cct", "light_rgb", "light_group")
 
 # Nazwy typów z YAML oznaczające ten sam typ kanału po stronie serwera SUPLA — przejście
 # między nimi nie narusza trwałości kanałów (MatterMeter to jednofazowy ElectricityMeterParsed).

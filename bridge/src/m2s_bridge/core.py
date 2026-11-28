@@ -9,6 +9,11 @@ Gniazdko (`onoff`):
 Światło z regulacją bieli (`light_cct`), format dla rozszerzenia MatterLight w supla-device:
   stan    `S B T`  — S: 1/0/-1, B: jasność 1–100, T: biel 0 (ciepła) – 100 (zimna)
   komenda `B T`    — B: 0 = zgaś, 1–100 = jasność; T: 0–100 albo -1 = bez zmiany
+Światło kolorowe (`light_rgb`, żarówka z barwą i bielą), format dla rozszerzenia MatterRgbLight:
+  stan    `S M B T R G B` — S: 1/0/-1, M: 1 = biała, 2 = kolorowa, B: jasność 1–100,
+          T: biel 0–100, R G B: kolor 0–255 (ostatni ustawiony, także gdy świeci biel)
+  komenda `M B T R G B`   — M: 0 = zgaś, 1 = biel (B, T), 2 = kolor (B, R, G, B); pola
+          nieużywane w danym trybie są pomijane
 Grupa świateł (`light_group`): tematy `<prefix>/group/<nazwa>/state|set`, format jak dla światła.
   Stan zbiorczy: włączona, gdy świeci którekolwiek światło; jasność i biel z pierwszego
   świecącego (a gdy wszystkie zgaszone - z pierwszego dostępnego); niedostępna dopiero wtedy,
@@ -44,7 +49,8 @@ STARTUP_VALUES: dict[str, int | None] = {"previous": None, "off": 0, "on": 1, "t
 STARTUP_NAMES = {0: "off", 1: "on", 2: "toggle"}
 IDENTIFY_CLUSTER = 0x0003
 IDENTIFY_SEC = 15  # tyle urządzenie daje o sobie znać (żarówka pulsuje, gniazdko miga diodą)
-LIGHT_TYPES = ("light_cct", GROUP_TYPE)
+LIGHT_TYPES = ("light_cct", "light_rgb", GROUP_TYPE)
+RGB_TYPE = "light_rgb"
 
 _COMMANDS = {
     "ON": "On",
@@ -175,7 +181,26 @@ class BridgeCore:
             return None
         low, high = light.mireds_range(attributes, dev.endpoint)
         temperature = light.mireds_to_temperature(mireds, low, high) if isinstance(mireds, int) else 50
-        return {"state": state, "brightness": light.level_to_percent(level), "temperature": temperature}
+        result = {"state": state, "brightness": light.level_to_percent(level), "temperature": temperature}
+        if dev.type == RGB_TYPE:
+            mode, rgb = self._color_of(attributes, dev.endpoint)
+            result["mode"] = mode
+            result["rgb"] = rgb  # type: ignore[assignment]
+        return result
+
+    @staticmethod
+    def _color_of(attributes: dict[str, Any], endpoint: int) -> tuple[int, tuple[int, int, int]]:
+        """Tryb (1 = biel, 2 = kolor) i kolor RGB światła kolorowego."""
+        matter_mode = attributes.get(light.color_mode_path(endpoint))
+        mode = light.MODE_WHITE if matter_mode == light.COLOR_MODE_CT else light.MODE_COLOR
+        hue = attributes.get(light.hue_path(endpoint))
+        saturation = attributes.get(light.saturation_path(endpoint))
+        x, y = attributes.get(f"{endpoint}/{light.COLOR_CLUSTER}/3"), attributes.get(f"{endpoint}/{light.COLOR_CLUSTER}/4")
+        if matter_mode == light.COLOR_MODE_XY and isinstance(x, int) and isinstance(y, int):
+            return mode, light.xy_to_rgb(x, y)
+        if isinstance(hue, int) and isinstance(saturation, int):
+            return mode, light.hs_to_rgb(hue, saturation)
+        return mode, light.DEFAULT_RGB
 
     def meter_state(self, dev: Device) -> dict[str, float] | None:
         """Pomiary licznika w jednostkach SUPLA albo None, gdy niedostępny lub niepełne dane."""
@@ -190,6 +215,14 @@ class BridgeCore:
             return "" if current is None else json.dumps(current)
         if dev.type in LIGHT_TYPES:
             current = self.light_state(dev)
+            if dev.type == RGB_TYPE:
+                if current is None:
+                    return "-1 1 0 0 255 255 255"
+                red, green, blue = current["rgb"]  # type: ignore[misc]
+                return (
+                    f"{current['state']} {current['mode']} {current['brightness']} "
+                    f"{current['temperature']} {red} {green} {blue}"
+                )
             if current is None:
                 return "-1 0 0"
             return f"{current['state']} {current['brightness']} {current['temperature']}"
@@ -430,6 +463,68 @@ class BridgeCore:
                 )
         return ok
 
+    async def set_light_rgb(
+        self,
+        dev: Device,
+        brightness: int | None,
+        temperature: int | None,
+        rgb: tuple[int, int, int] | None,
+    ) -> bool:
+        """Światło kolorowe: `rgb` ustawia kolor, `temperature` biel (kolor ma pierwszeństwo).
+
+        Bez żadnego z nich zmienia się tylko jasność w bieżącym trybie. Pomija to, co już jest ustawione.
+        """
+        current = self.light_state(dev)
+        attributes = self._attributes(dev)
+        if current is None or attributes is None:
+            log.warning("%s: komenda światła odrzucona — urządzenie niedostępne", dev.name)
+            return False
+        if brightness is not None:
+            brightness = max(0, min(100, brightness))
+        ok = True
+        options = {"optionsMask": light.EXECUTE_IF_OFF, "optionsOverride": light.EXECUTE_IF_OFF}
+        if rgb is not None and brightness != 0:
+            hue, saturation = light.rgb_to_hs(*rgb)
+            now_hue, now_saturation = light.rgb_to_hs(*current["rgb"])  # type: ignore[misc]
+            if current["mode"] != light.MODE_COLOR or (hue, saturation) != (now_hue, now_saturation):
+                ok &= await self._invoke(
+                    dev,
+                    light.COLOR_CLUSTER,
+                    "MoveToHueAndSaturation",
+                    {"hue": hue, "saturation": saturation, "transitionTime": light.TRANSITION, **options},
+                )
+        elif temperature is not None and brightness != 0:
+            temperature = max(0, min(100, temperature))
+            if current["mode"] != light.MODE_WHITE or temperature != current["temperature"]:
+                low, high = light.mireds_range(attributes, dev.endpoint)
+                ok &= await self._invoke(
+                    dev,
+                    light.COLOR_CLUSTER,
+                    "MoveToColorTemperature",
+                    {
+                        "colorTemperatureMireds": light.temperature_to_mireds(temperature, low, high),
+                        "transitionTime": light.TRANSITION,
+                        **options,
+                    },
+                )
+        if brightness is not None:
+            if brightness == 0:
+                if current["state"] == 1:
+                    ok &= await self._invoke(dev, ONOFF_CLUSTER, "Off")
+            elif current["state"] != 1 or brightness != current["brightness"]:
+                ok &= await self._invoke(
+                    dev,
+                    light.LEVEL_CLUSTER,
+                    "MoveToLevelWithOnOff",
+                    {
+                        "level": light.percent_to_level(brightness),
+                        "transitionTime": light.TRANSITION,
+                        "optionsMask": 0,
+                        "optionsOverride": 0,
+                    },
+                )
+        return ok
+
     async def handle_mqtt(self, topic: str, payload: bytes | str | None, retain: bool = False) -> None:
         dev = self._by_set_topic.get(topic)
         if dev is None:
@@ -442,6 +537,23 @@ class BridgeCore:
             text = payload.decode("utf-8", errors="replace")
         else:
             text = "" if payload is None else str(payload)
+        if dev.type == RGB_TYPE:
+            try:
+                values = [int(part) for part in text.split()]
+            except ValueError:
+                values = []
+            if len(values) != 6 or values[0] not in (0, light.MODE_WHITE, light.MODE_COLOR):
+                log.warning("%s: nieznana komenda światła %r", dev.name, text[:40])
+                return
+            mode, brightness, temperature = values[0], values[1], values[2]
+            color = tuple(max(0, min(255, v)) for v in values[3:6])
+            if mode == 0:
+                await self.set_light_rgb(dev, 0, None, None)
+            elif mode == light.MODE_WHITE:
+                await self.set_light_rgb(dev, brightness, temperature if temperature >= 0 else None, None)
+            else:
+                await self.set_light_rgb(dev, brightness, None, color)  # type: ignore[arg-type]
+            return
         if dev.type in LIGHT_TYPES:
             try:
                 values = [int(part) for part in text.split()]

@@ -15,7 +15,7 @@ import yaml
 from .meter import MEASUREMENTS
 
 # Typy urządzeń obsługiwane przez łącznik. Kolejne (jasność, czujniki) dojdą tutaj.
-DEVICE_TYPES = ("onoff", "light_cct", "meter", "light_group")
+DEVICE_TYPES = ("onoff", "light_cct", "light_rgb", "meter", "light_group")
 
 # Grupa świateł: jeden kanał SUPLA sterujący kilkoma światłami naraz. Nie ma własnego węzła
 # (node_id i endpoint są zerowe), a jej skład (`members`) wolno zmieniać bez wpływu na kanał.

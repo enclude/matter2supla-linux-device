@@ -361,7 +361,7 @@ function diagLink(nodeId) {
 
 const sliderHold = {};  // nazwa urządzenia -> czas ostatniego ruchu suwakiem (nie nadpisujemy w trakcie)
 const openRows = new Set();  // rozwinięte wiersze - lista jest przebudowywana co 2 s
-const TYPE_LABEL = { onoff: "gniazdko / przekaźnik", light_cct: "światło z regulacją bieli", meter: "licznik energii", light_group: "grupa świateł" };
+const TYPE_LABEL = { onoff: "gniazdko / przekaźnik", light_cct: "światło z regulacją bieli", light_rgb: "światło kolorowe (RGB + biel)", meter: "licznik energii", light_group: "grupa świateł" };
 const RENAME_PROMPT = "Nazwa w panelu (lokalna, nie jest wysyłana do SUPLA Cloud). Kanał dostaje ją w SUPLA tylko przy pierwszej rejestracji, np. po zmianie konta lub serwera - istniejącej nazwy w Cloud nie zmienia:";
 const SUPLA_CLOUD = "https://cloud.supla.org";  // przekierowuje na serwer konta
 let lastState = { devices: [] };
@@ -418,6 +418,20 @@ function sliders(dev) {
     const lab = el("label", null, label); lab.htmlFor = id; lab.style.margin = "0"; lab.style.fontWeight = "400";
     box.append(lab, input, out);
   }
+  if (dev.type === "light_rgb") {
+    // Kolor: wybór ustawia tryb koloru (jasność zostaje); suwak bieli przełącza z powrotem na biel.
+    const id = `sl-${dev.name}-color`;
+    const previous = held ? document.getElementById(id) : null;
+    const input = el("input");
+    input.type = "color"; input.id = id;
+    input.value = previous ? previous.value : (dev.color || "#ffffff");
+    input.disabled = dev.state === "unavailable";
+    const out = el("output", null, dev.mode === "color" ? "tryb: kolor" : "tryb: biel");
+    input.oninput = () => { sliderHold[dev.name] = Date.now(); };
+    input.onchange = () => { sliderHold[dev.name] = Date.now(); post(`/api/devices/${encodeURIComponent(dev.name)}/light`, { color: input.value }).catch((err) => alert(err.message)); };
+    const lab = el("label", null, "Kolor"); lab.htmlFor = id; lab.style.margin = "0"; lab.style.fontWeight = "400";
+    box.append(lab, input, out);
+  }
   return box;
 }
 
@@ -425,7 +439,7 @@ function summary(dev) {
   // Krótki opis w wierszu: najważniejsza wartość dla danego rodzaju urządzenia.
   const parts = [];
   if (dev.type === "light_group") parts.push(`świateł: ${dev.members.length}, dostępnych: ${dev.members_available}`);
-  if ((dev.type === "light_cct" || dev.type === "light_group") && dev.state === "on" && dev.brightness != null) parts.push(`jasność ${dev.brightness}%`);
+  if ((dev.type === "light_cct" || dev.type === "light_rgb" || dev.type === "light_group") && dev.state === "on" && dev.brightness != null) parts.push(`jasność ${dev.brightness}%`);
   if (dev.meter) parts.push(meterText(dev.meter));
   if (dev.type !== "light_group" && dev.type !== "meter") {
     // Model, a gdy jest już w tytule (urządzenie bez własnej nazwy) - numer węzła, żeby dało się je odróżnić.
@@ -445,7 +459,7 @@ function searchText(dev) {
 function detailsBox(dev, options) {
   const box = el("div", "details");
   const left = el("div", "controls");
-  if (dev.type === "light_cct" || dev.type === "light_group") left.append(sliders(dev));
+  if (dev.type === "light_cct" || dev.type === "light_rgb" || dev.type === "light_group") left.append(sliders(dev));
   const facts = [["Rodzaj", TYPE_LABEL[dev.type]], ["Nazwa techniczna", dev.name]];
   if (dev.type !== "light_group") {
     facts.push(["Urządzenie", [dev.vendor, dev.product].filter(Boolean).join(" · ") || "?"]);

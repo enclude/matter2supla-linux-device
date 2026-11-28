@@ -35,6 +35,15 @@ Zasady:
 | Matter → SUPLA | `m2s/<node>/<endpoint>/light_cct/state` (retained) | `S B T` - `S`: 1 świeci, 0 zgaszone, -1 niedostępne; `B`: jasność 1–100; `T`: biel 0 (ciepła) – 100 (zimna) |
 | SUPLA → Matter | `m2s/<node>/<endpoint>/light_cct/set` | `B T` - `B`: 0 = zgaś, 1–100 = jasność; `T`: 0–100 albo -1 = bez zmiany |
 
+Światło kolorowe (`light_rgb`, np. KAJPLATS CWS) ma ten sam układ tematów z typem `light_rgb`, ale dłuższy komunikat. Matter ma jedną jasność i jeden tryb naraz, więc świeci albo biel, albo kolor:
+
+| Kierunek | Temat | Treść |
+| --- | --- | --- |
+| Matter → SUPLA | `m2s/<node>/<endpoint>/light_rgb/state` (retained) | `S M B T R G Bl` - `S`: 1 świeci, 0 zgaszone, -1 niedostępne; `M`: 1 biel, 2 kolor; `B`: jasność 1–100; `T`: biel 0–100; `R G Bl`: kolor 0–255 (ostatni ustawiony, także gdy świeci biel) |
+| SUPLA → Matter | `m2s/<node>/<endpoint>/light_rgb/set` | `M B T R G Bl` - `M`: 0 = zgaś, 1 = biel (`B`, `T`), 2 = kolor (`B`, `R G Bl`) |
+
+Kolor idzie do żarówki jako barwa i nasycenie (`MoveToHueAndSaturation`), a przy żarówce w trybie XY stan jest przeliczany ze współrzędnych XY. Kanał SUPLA to `MatterRgbLight` (ściemniacz CCT + RGB). W aplikacji SUPLA biel i kolor mają osobne suwaki, ale żarówka świeci tylko jednym trybem naraz: o trybie decyduje ta część, którą ostatnio zmieniono.
+
 Licznik energii (`meter`) publikuje na `m2s/<node>/<endpoint>/meter/state` (retained) JSON z pomiarami, np. `{"voltage": 230.0, "current": 8.002, "power": 1840.5, "energy": 2.5}` (V, A, W, kWh), albo pusty komunikat, gdy urządzenie jest niedostępne. Licznik nie ma tematu komend.
 
 ## Dostępność (offline)
@@ -55,6 +64,7 @@ Gdy kontroler zgłosi nowy węzeł, łącznik szuka endpointów z klastrem OnOff
 
 - OnOff bez LevelControl → typ `onoff`, kanał SUPLA `CustomRelay`; przy `auto_add: true` dopisywany od razu z kolejnym numerem;
 - OnOff + LevelControl + temperatura bieli → typ `light_cct`, kanał SUPLA `MatterLight` (ściemniacz CCT, własne rozszerzenie `supla-device`); przy `lights_as_channels: false` bez kanału, sterowanie tylko z panelu;
+- OnOff + LevelControl + temperatura bieli + barwa i nasycenie (ColorCapabilities, bit HS) → typ `light_rgb`, kanał SUPLA `MatterRgbLight`; takie światła nie należą do grup (grupa obejmuje tylko `light_cct`);
 - inne światła (np. sam ściemniacz bez regulacji bieli) → bez kanału, jeszcze nieobsługiwane;
 - endpoint z pomiarem mocy lub energii → typ `meter`, kanał SUPLA `MatterMeter` (jednofazowy licznik energii, własne rozszerzenie `supla-device`); w panelu stoi pod swoim gniazdkiem ([zrzut](img/panel-kanaly.png)), a jego nazwa wynika z nazwy gniazdka;
 - węzły bez OnOff (czujniki itp.) → lista „bez kanału”, tylko diagnostyka.

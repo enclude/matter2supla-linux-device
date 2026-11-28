@@ -367,7 +367,10 @@ def create_app(
                 raise ValueError(f"{key} musi być liczbą")
             return int(value)
 
-        await manager.set_light(request.match_info["name"], number("brightness"), number("temperature"))
+        color = data.get("color")
+        if color is not None and not isinstance(color, str):
+            raise ValueError("color musi być tekstem #rrggbb")
+        await manager.set_light(request.match_info["name"], number("brightness"), number("temperature"), color)
         return web.json_response({"ok": True})
 
     async def device_caption(request: web.Request) -> web.Response:
